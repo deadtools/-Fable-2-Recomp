@@ -18,7 +18,64 @@
 
 ![DualShock menu badge](docs/screenshots/dualshock-menu-badge.png)
 
-**Сборка / Build**
+## 🚀 Как установить и запустить / How to install and run
+
+> Лаунчер — это только окно настроек. Сама игра — это `fable_2.exe` и DLL из готовой сборки himdo. Лаунчер нужно положить **рядом** с ними.
+> *The launcher is only a settings window. The game itself is `fable_2.exe` + DLLs from himdo's prebuilt release — put the launcher **next to** them.*
+
+**Что нужно:** Windows 10/11 x64, ISO-образ Fable II GOTY (свой), [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0) (только для сборки лаунчера).
+
+### 1. Готовая игра (один раз)
+1. Откройте релиз оригинала: https://github.com/himdo/Fable-2-Recomp/releases/tag/1.5.0
+2. В **Assets** скачайте архив с готовой сборкой (не «Source code»).
+3. Распакуйте в папку **без русских букв и не в облачную папку** (Яндекс Диск, OneDrive и т. п.), например `D:\Games\Fable2`.
+
+> ⚠️ **Важно:** путь вида `Y:\YandexDisk\Софт\...` не работает — игра не находит папку `data` из-за кириллицы в пути.
+
+### 2. Лаунчер 1.6.x из этого репозитория
+1. **Code → Download ZIP**, распакуйте (например, в `D:\Games\Fable2-Source`).
+2. Запустите `BUILD-LAUNCHER-LOCAL.cmd` и дождитесь окончания.
+3. Скопируйте `out\texture-diagnostics-launcher\Fable2Launcher.exe` в папку игры из шага 1 **с заменой**.
+
+### 3. Файлы игры из ISO (один раз)
+1. Запустите `Fable2Launcher.exe` **из папки игры**.
+2. Нажмите **«Извлечь из ISO»** и выберите свой образ.
+3. После распаковки рядом с `fable_2.exe` должны лежать `default.xex` и папка `data`.
+
+### 4. Запуск
+1. Скорость игры — **1,0×** (другие значения требуют пересборки `fable_2.exe`).
+2. Нажмите **«Запустить игру»**. В дальнейшем запускайте игру только через этот лаунчер.
+
+Итоговая папка игры:
+```
+D:\Games\Fable2\
+├─ Fable2Launcher.exe   ← из этого репозитория (1.6.x)
+├─ fable_2.exe          ← из релиза himdo 1.5.0
+├─ rexruntime.dll, rexgpu-xenos.dll, …
+├─ default.xex          ← извлечено из ISO
+└─ data\                ← извлечено из ISO
+```
+
+### Если не запускается
+| Сообщение | Что делать |
+|---|---|
+| `The data folder was not found in …` | Перенесите папку игры в путь без кириллицы и не в облако. Проверьте, что есть папка `data`, иначе снова «Извлечь из ISO». |
+| `default.xex was not found next to fable_2.exe` | Лаунчер лежит не в папке игры или ISO не распакован. |
+| Ошибка хэша / `Incomplete or mixed GOTY content` | Образ другой версии. Поддерживаются GOTY USA/Europe, Germany, France, Italy, Russia, Spain. |
+| «Для скорости отличной от 1,0× нужен новый fable_2.exe» | Верните скорость 1,0×. |
+| Лаунчер не открывается | Смотрите `%LOCALAPPDATA%\Fable2Launcher\launcher-startup-error.log`; вернуть прежний лаунчер — `RESTORE-LAUNCHER-BACKUP.cmd`. |
+
+<details>
+<summary><b>English (short)</b></summary>
+
+1. Download himdo's prebuilt **1.5.0** release (Assets, not "Source code") and extract it to a folder with **Latin-only characters, outside cloud-synced folders** (e.g. `D:\Games\Fable2`). Non-Latin characters in the path make the game fail with *"The data folder was not found"*.
+2. Download this repo (**Code → Download ZIP**), run `BUILD-LAUNCHER-LOCAL.cmd` (needs .NET 8 SDK), copy `out\texture-diagnostics-launcher\Fable2Launcher.exe` into the game folder, replacing the old one.
+3. Run the launcher from the game folder → **Extract from ISO** → pick your own ISO. `default.xex` and `data\` must appear next to `fable_2.exe`.
+4. Keep game speed at **1.0×** (other values need a rebuilt `fable_2.exe`) and press **Launch**.
+
+</details>
+
+**Для разработчиков / For developers**
 - `BUILD-LAUNCHER-LOCAL.cmd` — тесты и сборка только лаунчера (.NET 8 SDK), без пересборки игры. Готовый файл: `out\texture-diagnostics-launcher\Fable2Launcher.exe` — скопируйте его в папку с игрой вместо старого.
 - `RESTORE-LAUNCHER-BACKUP.cmd` — вернуть предыдущий `Fable2Launcher.exe` из резервной копии.
 - Если лаунчер не открывается, ошибка запуска записывается в `%LOCALAPPDATA%\Fable2Launcher\launcher-startup-error.log`.
