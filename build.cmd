@@ -36,6 +36,11 @@ if /i "%~1"=="launcher-dev" (
     call "%~dp0launcher\build-launcher.cmd" dev || exit /b 1
     exit /b 0
 )
+rem v18.4: the speed-build preflight passes one tested absolute toolchain.
+rem CMake 4.5 can generate an invalid CMakeRCCompiler.cmake when the RC path
+rem is passed with Windows backslashes. Use CMake-style forward slashes.
+rem A stale global LLVM variable must not override that selection.
+if defined FABLE2_TOOLCHAIN_READY set "LLVM=%FABLE2_LLVM_BIN%"
 rem LLVM: prefer clang++ already on PATH, else the default install location
 where clang++ >nul 2>nul
 if errorlevel 1 (
@@ -152,6 +157,15 @@ if /i "%CONFIG%"=="win-amd64-debug" (
 call "%~dp0tools\build_runtime_sdk.cmd" "%REXSDK%" "%RUNTIMECONFIG%" || exit /b 1
 set "CODEGENSDK=%REXSDK%"
 set "REXSDK=%~dp0out\tooling\%RUNTIMEDIR%\win-amd64"
+
+rem Guard old CMake outputs against compiler/STL changes; never delete them.
+if defined FABLE2_TOOLCHAIN_READY (
+    python "%~dp0tools\check_game_speed_toolchain.py" --prepare-cache "%~dp0out\build\%CONFIG%" || exit /b 1
+    cmake --preset %CONFIG% -DCMAKE_C_COMPILER="%FABLE2_CC%" -DCMAKE_CXX_COMPILER="%FABLE2_CXX%" -DCMAKE_RC_COMPILER:FILEPATH="%FABLE2_RC:\=/%" -DCMAKE_C_COMPILER_TARGET=x86_64-pc-windows-msvc -DCMAKE_CXX_COMPILER_TARGET=x86_64-pc-windows-msvc -DCMAKE_PREFIX_PATH="%REXSDK%" -Drexglue_DIR="%REXSDK%\lib\cmake\rexglue" -DREXGLUE_SDK_ROOT="%REXSDK%" -DREXGLUE_SDK_SOURCE="%SDKSRC%" -DFABLE2_CODEGEN_TOOL="%CODEGENSDK%\bin\rexglue.exe" || exit /b 1
+    cmake --build out\build\%CONFIG% --target %TARGET%
+    if errorlevel 1 exit /b 1
+    exit /b 0
+)
 
 rem (inline -D with quotes at the call site: cmd cannot carry a quoted value
 rem in a variable for paths with spaces)

@@ -14,7 +14,7 @@ public static class GameLaunchPlanner
             throw new InvalidOperationException(compatibility.Message);
         string executable = Path.Combine(executableDirectory, "fable_2.exe");
         if (!File.Exists(executable))
-            throw new InvalidOperationException("fable_2.exe was not found next to the launcher or in the selected folder.");
+            throw new InvalidOperationException("Файл fable_2.exe не найден рядом с лаунчером или в выбранной папке.");
 
         // Legacy executables only support USA/EU. A generated descriptor permits
         // the German or dual-GOTY executable; never silently try an old US build.
@@ -27,7 +27,7 @@ public static class GameLaunchPlanner
                 .Select(value => value.GetString() ?? "").ToArray();
         }
         if (!profiles.Contains(compatibility.Profile, StringComparer.Ordinal))
-            throw new InvalidOperationException($"This fable_2.exe does not support {compatibility.Profile}. Install the dual-GOTY Recomp build.");
+            throw new InvalidOperationException($"Этот fable_2.exe не поддерживает профиль {compatibility.Profile}. Установите сборку Recomp с поддержкой нескольких GOTY-версий.");
         return new(Path.GetFullPath(executable), Path.GetFullPath(executableDirectory), Path.GetFullPath(gameRoot));
     }
 }

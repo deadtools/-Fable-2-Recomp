@@ -1,7 +1,6 @@
 using System.Globalization;
 using System.IO;
 using System.Text;
-using System.Text.RegularExpressions;
 
 namespace Fable2Launcher;
 
@@ -19,6 +18,9 @@ public class Fable2ConfigValues
         "W:StickUp,S:StickDown,A:StickLeft,D:StickRight," +
         "Escape:Pause,M:Select," +
         "Up:Up,Down:Down,Left:Left,Right:Right";
+
+    // [gameplay]
+    public double GameSpeed { get; set; } = GameSpeedSettings.Default;
 
     // [input]
     public string KeyboardGamepadMap { get; set; } = DefaultKeyboardGamepadMap;
@@ -89,25 +91,21 @@ public static class Fable2ConfigFile
         var values = new Fable2ConfigValues();
         if (!File.Exists(path)) return values;
 
-        string? section = null;
-        foreach (string rawLine in File.ReadLines(path))
+        var document = new TomlTextDocument(File.ReadAllText(path));
+        string? version = document.GetValue("general", "config_version");
+        if (version is not null && version != "1")
+            throw new FormatException("Версия fable2_config.toml не поддерживается; настройки не изменены.");
+        foreach (var entry in document.Assignments)
         {
-            string line = rawLine.TrimStart();
-            if (line.StartsWith('#')) continue;
-            if (line.StartsWith('['))
-            {
-                section = line.TrimStart('[').TrimEnd(']').Trim();
-                continue;
-            }
-            int eq = line.IndexOf('=');
-            if (eq < 0) continue;
-            string key = line.Substring(0, eq).Trim();
-            string rawValue = line.Substring(eq + 1).Trim();
-            int comment = rawValue.IndexOf('#');
-            if (comment >= 0) rawValue = rawValue.Substring(0, comment).Trim();
+            string section = entry.Section;
+            string key = entry.Key;
+            string rawValue = entry.Value;
 
             switch (section)
             {
+                case "gameplay":
+                    if (key == "game_speed") values.GameSpeed = GameSpeedSettings.Parse(rawValue);
+                    break;
                 case "input":
                     if (key == "keyboard_gamepad_map") values.KeyboardGamepadMap = Unquote(rawValue);
                     else if (key == "mouse_look") values.MouseLook = ParseBool(rawValue, values.MouseLook);
@@ -144,17 +142,18 @@ public static class Fable2ConfigFile
         string? directory = Path.GetDirectoryName(path);
         if (!string.IsNullOrEmpty(directory)) Directory.CreateDirectory(directory);
 
-        string backupPath = path + ".launcher-backup";
-        if (File.Exists(path) && !File.Exists(backupPath)) File.Copy(path, backupPath);
-
-        List<string> lines = File.Exists(path)
-            ? File.ReadAllLines(path).ToList()
-            : new List<string> { "# fable2_config.toml - Fable 2 recomp user configuration" };
+        string? original = File.Exists(path) ? File.ReadAllText(path) : null;
+        var document = new TomlTextDocument(original ??
+            "# fable2_config.toml - пользовательская конфигурация Fable 2 Recomp\n");
+        string? version = document.GetValue("general", "config_version");
+        if (version is not null && version != "1")
+            throw new FormatException("Версия fable2_config.toml не поддерживается; настройки не изменены.");
 
         var managed = new (string section, string key, string value)[]
         {
             // config_version is the format marker the game requires to load the file.
             ("general", "config_version", "1"),
+            ("gameplay", "game_speed", GameSpeedSettings.Serialize(values.GameSpeed)),
             ("input", "keyboard_gamepad_map", Quote(values.KeyboardGamepadMap)),
             ("input", "mouse_look", values.MouseLook ? "true" : "false"),
             ("input", "mouse_look_scale", values.MouseLookScale.ToString(CultureInfo.InvariantCulture)),
@@ -169,16 +168,34 @@ public static class Fable2ConfigFile
             ("perf", "hotfunc_yield_every", values.HotFuncYieldEvery.ToString(CultureInfo.InvariantCulture)),
         };
 
-        var updated = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var (section, key, value) in managed)
-            if (UpdateKeyInSection(lines, section, key, value)) updated.Add(key);
-        foreach (var (section, key, value) in managed)
-            if (!updated.Contains(key)) AddKeyToSection(lines, section, key, value);
+            document.SetValue(section, key, value);
 
+        SaveDocument(path, original, document);
+    }
+
+    public static void WriteGameSpeed(string path, double speed)
+    {
+        string? directory = Path.GetDirectoryName(path);
+        if (!string.IsNullOrEmpty(directory)) Directory.CreateDirectory(directory);
+        string? original = File.Exists(path) ? File.ReadAllText(path) : null;
+        var document = new TomlTextDocument(original ?? "# Fable II configuration\n");
+        string? version = document.GetValue("general", "config_version");
+        if (version is not null && version != "1")
+            throw new FormatException("Unsupported fable2_config.toml version; not modified.");
+        document.SetValue("general", "config_version", "1");
+        document.SetValue("gameplay", "game_speed", GameSpeedSettings.Serialize(speed));
+        SaveDocument(path, original, document);
+    }
+
+    private static void SaveDocument(string path, string? original, TomlTextDocument document)
+    {
+        string backupPath = path + ".launcher-backup";
+        if (original is not null && !File.Exists(backupPath)) File.Copy(path, backupPath);
         string tempPath = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
         try
         {
-            File.WriteAllText(tempPath, string.Join(Environment.NewLine, lines) + Environment.NewLine,
+            File.WriteAllText(tempPath, document.ToString(),
                 new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
             File.Move(tempPath, path, overwrite: true);
         }
@@ -220,67 +237,6 @@ public static class Fable2ConfigFile
         return string.Join(",", parts);
     }
 
-    // ---- non-destructive write helpers ----
-
-    private static (int start, int end) FindSectionRange(List<string> lines, string section)
-    {
-        int start = -1, end = lines.Count;
-        for (int i = 0; i < lines.Count; i++)
-        {
-            string trimmed = lines[i].TrimStart();
-            if (!trimmed.StartsWith('[') || trimmed.StartsWith("[#")) continue;
-            string name = trimmed.TrimStart('[').TrimEnd(']').Trim();
-            if (start < 0)
-            {
-                if (string.Equals(name, section, StringComparison.OrdinalIgnoreCase)) start = i;
-            }
-            else
-            {
-                end = i;
-                break;
-            }
-        }
-        return (start, end);
-    }
-
-    private static bool UpdateKeyInSection(List<string> lines, string section, string key, string value)
-    {
-        var (start, end) = FindSectionRange(lines, section);
-        if (start < 0) return false;
-        var pattern = new Regex(
-            @"^(\s*)" + Regex.Escape(key) + @"(\s*=\s*)(.*?)(\s+#.*)?$",
-            RegexOptions.Compiled);
-        for (int i = start + 1; i < end; i++)
-        {
-            Match match = pattern.Match(lines[i]);
-            if (match.Success)
-            {
-                // Keep indentation, spacing and any existing inline comment.
-                lines[i] = match.Groups[1].Value + key + match.Groups[2].Value + value + match.Groups[4].Value;
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private static void AddKeyToSection(List<string> lines, string section, string key, string value)
-    {
-        var (start, end) = FindSectionRange(lines, section);
-        if (start < 0)
-        {
-            // Section does not exist: create it at the end of the file.
-            if (lines.Count > 0 && !string.IsNullOrWhiteSpace(lines[^1])) lines.Add(string.Empty);
-            lines.Add($"[{section}]");
-            lines.Add($"{key} = {value}");
-            return;
-        }
-        // Append at the end of the section, after the last non-blank line.
-        int insertAt = end;
-        while (insertAt > start + 1 && string.IsNullOrWhiteSpace(lines[insertAt - 1]))
-            insertAt--;
-        lines.Insert(insertAt, $"{key} = {value}");
-    }
-
     // ---- value (de)serialization helpers ----
 
     private static bool ParseBool(string value, bool fallback)
@@ -297,18 +253,6 @@ public static class Fable2ConfigFile
             out int parsed) ? parsed : fallback;
     }
 
-    private static string Quote(string value)
-    {
-        return "\"" + value.Replace("\\", "\\\\").Replace("\"", "\\\"") + "\"";
-    }
-
-    private static string Unquote(string value)
-    {
-        value = value.Trim();
-        if (value.Length >= 2 && value[0] == '"' && value[^1] == '"')
-            return value.Substring(1, value.Length - 2).Replace("\\\"", "\"").Replace("\\\\", "\\");
-        if (value.Length >= 2 && value[0] == '\'' && value[^1] == '\'')
-            return value.Substring(1, value.Length - 2);  // TOML literal string (no escapes)
-        return value;
-    }
+    private static string Quote(string value) => TomlTextDocument.Quote(value);
+    private static string Unquote(string value) => TomlTextDocument.Unquote(value);
 }

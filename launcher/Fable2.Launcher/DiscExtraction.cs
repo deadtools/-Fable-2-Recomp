@@ -32,7 +32,7 @@ public sealed class RootItem
 /// </summary>
 public sealed class ExtractionCancelledException : Exception
 {
-    public ExtractionCancelledException() : base("Extraction stopped.") { }
+    public ExtractionCancelledException() : base("Извлечение остановлено.") { }
 }
 
 /// <summary>
@@ -66,7 +66,7 @@ public sealed class ExtractionProgress
     public long CurrentFileSize { get; private set; }
 
     /// <summary>Human-readable stage, e.g. "Extracting data/audio".</summary>
-    public string Phase { get; private set; } = "Starting…";
+    public string Phase { get; private set; } = "Запуск…";
 
     /// <summary>Percentage 0..100 across the whole extraction.</summary>
     public double Percent
@@ -205,13 +205,13 @@ public sealed class DiscExtraction : IDisposable
     public static DiscExtraction Open(string isoPath, Action<string>? status = null)
     {
         if (!File.Exists(isoPath))
-            throw new FileNotFoundException("ISO not found.", isoPath);
+            throw new FileNotFoundException("ISO-образ не найден.", isoPath);
 
-        status?.Invoke("Scanning disc for the GDFX header…");
+        status?.Invoke("Поиск заголовка GDFX на диске…");
         X360Disc disc = X360Disc.Open(isoPath, p =>
         {
             if (p.Phase == DiscProgressPhase.ScanningHeader)
-                status?.Invoke("Scanning disc for the GDFX header…");
+                status?.Invoke("Поиск заголовка GDFX на диске…");
         });
         return new DiscExtraction(disc);
     }
@@ -231,10 +231,10 @@ public sealed class DiscExtraction : IDisposable
         ExtractionProgress? progress = null, string xexFileName = "default.xex")
     {
         GdfxEntry entry = DefaultXex
-            ?? throw new InvalidDataException("No default.xex found at the root of this ISO.");
+            ?? throw new InvalidDataException("В корне этого ISO-образа не найден default.xex.");
 
-        status?.Invoke($"Extracting default.xex ({FormatSize(entry.Size)})…");
-        progress?.SetPhase("Extracting default.xex");
+        status?.Invoke($"Извлечение default.xex ({FormatSize(entry.Size)})…");
+        progress?.SetPhase("Извлечение default.xex");
         using IncrementalHash sha = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
         _disc.WriteFile(entry, Path.Combine(outDir, xexFileName),
             onBytes: (b, off, cnt) => sha.AppendData(b, off, cnt),
@@ -264,8 +264,8 @@ public sealed class DiscExtraction : IDisposable
                 switch (p.Phase)
                 {
                     case DiscProgressPhase.EnteringDirectory:
-                        status?.Invoke($"Extracting {p.Name}/ ({p.FileCount} files)…");
-                        progress?.SetPhase($"Extracting {p.Name}");
+                        status?.Invoke($"Извлечение {p.Name}/ (файлов: {p.FileCount})…");
+                        progress?.SetPhase($"Извлечение {p.Name}");
                         break;
                     case DiscProgressPhase.FileWritten:
                         progress?.OnFileCompleted(p.Name!, p.SizeBytes);

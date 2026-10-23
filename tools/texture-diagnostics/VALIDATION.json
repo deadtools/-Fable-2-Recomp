@@ -1,0 +1,14 @@
+{
+  "patch_id": "fable2-texture-diagnostics-20261019-v1",
+  "status": "source_changes_and_experimental_powershell_companion_not_a_rebuilt_game",
+  "not_executed": [
+    "CSharp regression suite",
+    "dotnet WPF build",
+    "PowerShell self-tests and Windows execution",
+    "full native game/GPU build",
+    "gameplay stability/performance/texture validation"
+  ],
+  "limitation": "No dotnet SDK or PowerShell in this environment; official SDK download failed at DNS/download step.",
+  "no_game_or_save_assets": true,
+  "purpose": "Run current binary with a controlled readback test and local diagnostics. Does not add C++ runtime log code to that binary."
+}

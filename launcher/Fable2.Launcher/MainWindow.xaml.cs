@@ -7,6 +7,7 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Navigation;
 using System.Windows.Threading;
 
 namespace Fable2Launcher;
@@ -17,6 +18,12 @@ public partial class MainWindow : Window
     private string? _gameDirectory;
     private string? _executableDirectory;
     private bool _loading = true;
+    private bool _diagnosticRunning;
+    private ComboBox? _textureModeCombo;
+    private TextBlock? _textureModeHelp;
+    private TextBlock? _textureInputSummary;
+    private CheckBox? _readbackOverride;
+    private CheckBox? _dualShockCheck;
 
     // Advanced Options page state.
     private Fable2ConfigValues _advanced = new();
@@ -46,14 +53,40 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         PreviewKeyDown += MainWindow_PreviewKeyDown;
+        Closing += (_, e) =>
+        {
+            if (_diagnosticRunning && MessageBox.Show(this,
+                "Игра продолжит работать, но диагностический отчёт останется неполным. Закрыть лаунчер?",
+                "Диагностический сеанс", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
+                e.Cancel = true;
+        };
         SetDefaults();
         DetectGameDirectory();
         _loading = false;
         RefreshSummary();
     }
 
+    private void DeadtoolsLinkRequested(object sender, RequestNavigateEventArgs e)
+    {
+        e.Handled = true;
+        try
+        {
+            Process.Start(new ProcessStartInfo("https://github.com/deadtools")
+            {
+                UseShellExecute = true
+            });
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, "Не удалось открыть GitHub: " + ex.Message,
+                "Ссылка на автора доработок", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
     private void SetDefaults()
     {
+        GameSpeedSlider.Value = 10;
+        UpdateGameSpeedLabel();
         SelectByTag(ResolutionCombo, "1080p");
         SelectByTag(RenderScaleCombo, "2");
         SelectByTag(AnisotropicCombo, "5");
@@ -103,7 +136,7 @@ public partial class MainWindow : Window
         catch (Exception exception)
         {
             StatusText.Text = exception.Message;
-            ConfigStateText.Text = "Not ready to launch";
+            ConfigStateText.Text = "Не готово к запуску";
         }
     }
 
@@ -132,6 +165,8 @@ public partial class MainWindow : Window
             SelectByTag(AnisotropicCombo, GetValue("anisotropic_override", "5"));
             SelectByTag(AntiAliasingCombo, Unquote(GetValue("swap_post_effect", "none")));
             SelectByTag(FrameLimitCombo, GetValue("frame_limit", "0"));
+            GameSpeedSlider.Value = GameSpeedSettings.ToStep(Fable2ConfigFile.Read(AdvancedConfigPath()).GameSpeed);
+            UpdateGameSpeedLabel();
 
             bool fullscreen = ParseBool(GetValue("fullscreen", "true"), true);
             bool exclusive = ParseBool(GetValue("fullscreen_exclusive", "false"), false);
@@ -141,7 +176,7 @@ public partial class MainWindow : Window
         }
         finally { _loading = false; }
         RefreshSummary();
-        ConfigStateText.Text = "Settings loaded";
+        ConfigStateText.Text = "Настройки загружены";
     }
 
     private string GetValue(string key, string fallback) =>
@@ -182,8 +217,8 @@ public partial class MainWindow : Window
     {
         if (_gameDirectory is null || _executableDirectory is null || !File.Exists(Path.Combine(_executableDirectory, "fable_2.exe")))
         {
-            MessageBox.Show(this, "Choose the folder containing fable_2.exe first.",
-                "Game not found", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show(this, "Сначала выберите папку, содержащую fable_2.exe.",
+                "Игра не найдена", MessageBoxButton.OK, MessageBoxImage.Warning);
             return false;
         }
 
@@ -194,30 +229,38 @@ public partial class MainWindow : Window
             LauncherConfigFile.WriteValues(path, settings, GraphicsSettings.ManagedKeys);
             LauncherConfigFile.WriteValues(Path.Combine(_executableDirectory,
                 "launcher-settings.toml"), settings, GraphicsSettings.ManagedKeys);
+            Fable2ConfigFile.WriteGameSpeed(AdvancedConfigPath(), SelectedGameSpeed());
             _values.Clear();
             foreach ((string key, string value) in settings) _values[key] = value;
         }
         catch (Exception exception)
         {
-            MessageBox.Show(this, exception.Message, "Could not save settings",
+            MessageBox.Show(this, exception.Message, "Не удалось сохранить настройки",
                 MessageBoxButton.OK, MessageBoxImage.Error);
             return false;
         }
 
-        StatusText.Text = $"Saved {Path.GetFileName(path)}.";
-        ConfigStateText.Text = "Settings saved";
+        StatusText.Text = $"Сохранено: {Path.GetFileName(path)}.";
+        ConfigStateText.Text = "Настройки сохранены";
         return true;
     }
 
-    private void LaunchGame()
+    private async void LaunchGame()
     {
-        if (_extracting) return;
+        if (_extracting || _diagnosticRunning) return;
         if (_gameDirectory is null || _executableDirectory is null) return;
-
+        LaunchDiagnostics? session = null;
         try
         {
             var plan = GameLaunchPlanner.Create(_executableDirectory, _gameDirectory,
                 GameCompatibilityInspector.Inspect(_gameDirectory));
+            if (SelectedGameSpeed() != GameSpeedSettings.Default &&
+                !GameSpeedSettings.SupportsRuntime(plan.Executable))
+                throw new InvalidOperationException("Для скорости отличной от 1,0× нужен новый fable_2.exe.\n\nЗакройте игру и запустите BUILD-GAME-SPEED-LOCAL.cmd из папки исходников. Одной пересборки лаунчера недостаточно.");
+            var saved = Fable2ConfigFile.Read(AdvancedConfigPath());
+            if (TextureModeSettings.Get(saved) == HeroDogTextureMode.DiagnosticOff &&
+                MessageBox.Show(this, "Оба исправления текстур героя и собаки отключены. Ожидаются чёрные текстуры. Продолжить диагностический тест?",
+                    "Режим текстур", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
             if (!SaveConfiguration()) return;
             var startInfo = new ProcessStartInfo
             {
@@ -226,17 +269,52 @@ public partial class MainWindow : Window
                 UseShellExecute = false
             };
             startInfo.ArgumentList.Add("--game_data_root=" + plan.GameRoot);
-            Process.Start(startInfo);
-            StatusText.Text = "Fable II launched.";
-            ConfigStateText.Text = "Game running";
-            // The game is a separate process, so the launcher can close itself
-            // now that it has started. Only close on a successful launch.
-            Close();
+            if (_readbackOverride?.IsChecked == true)
+                TextureModeSettings.AddReadbackOverride(startInfo, saved);
+
+            bool useDualShock = LauncherState.LoadDualShockEnabled();
+            string dualShockStatus = DualShockPromptPatcher.Apply(_gameDirectory, useDualShock);
+            StatusText.Text = dualShockStatus;
+            bool diagnostic = DiagnosticCheck.IsChecked == true;
+            if (diagnostic)
+            {
+                _diagnosticRunning = true;
+                MainContent.IsEnabled = MainFooter.IsEnabled = AdvancedOptionsButton.IsEnabled = false;
+                StatusText.Text = "Подготовка локального диагностического отчёта…";
+                session = await Task.Run(() => LaunchDiagnostics.Begin(plan, startInfo));
+            }
+            using var process = Process.Start(startInfo) ?? throw new InvalidOperationException("Не удалось запустить процесс игры.");
+            StatusText.Text = "Fable II запущена.";
+            ConfigStateText.Text = "Игра запущена";
+            if (!diagnostic) { Close(); return; }
+            session!.MarkStarted(process.Id);
+            WindowState = WindowState.Minimized;
+            await process.WaitForExitAsync();
+            int exitCode = process.ExitCode;
+            await Task.Run(() => session.Complete(exitCode));
+            _diagnosticRunning = false;
+            WindowState = WindowState.Normal;
+            Activate();
+            StatusText.Text = $"Игра завершилась с кодом {LaunchDiagnostics.FormatExitCode(exitCode)}. Отчёт: {session.DirectoryPath}";
+            ConfigStateText.Text = "Диагностический отчёт сохранён";
+            MessageBox.Show(this, $"Код завершения процесса: {LaunchDiagnostics.FormatExitCode(exitCode)}\n\nЛокальный отчёт сохранён:\n{session.DirectoryPath}\n\nНикакие файлы не отправлялись. Перед передачей отчёта проверьте пути и настройки. Один код завершения не определяет причину сбоя.",
+                "Диагностический сеанс завершён", MessageBoxButton.OK, MessageBoxImage.Information);
         }
         catch (Exception exception)
         {
-            MessageBox.Show(this, exception.Message, "Could not launch Fable II",
+            if (session is not null)
+            {
+                try { await Task.Run(() => session.Complete(null, exception.Message)); }
+                catch { /* Keep the original error. The prepared report remains on disk. */ }
+            }
+            WindowState = WindowState.Normal;
+            MessageBox.Show(this, exception.Message, "Ошибка запуска или диагностики",
                 MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+        finally
+        {
+            _diagnosticRunning = false;
+            MainContent.IsEnabled = MainFooter.IsEnabled = AdvancedOptionsButton.IsEnabled = true;
         }
     }
 
@@ -244,7 +322,7 @@ public partial class MainWindow : Window
     {
         int scale = int.TryParse(SelectedTag(RenderScaleCombo), NumberStyles.Integer,
             CultureInfo.InvariantCulture, out int parsedScale) ? parsedScale : 1;
-        InternalResolutionText.Text = $"Internal: {1280 * scale:N0} × {720 * scale:N0}";
+        InternalResolutionText.Text = $"Внутреннее: {1280 * scale:N0} × {720 * scale:N0}";
 
         string output = SelectedTag(ResolutionCombo) switch
         {
@@ -252,15 +330,31 @@ public partial class MainWindow : Window
             "1080p" => "1920 × 1080",
             "1440p" => "2560 × 1440",
             "4k" => "3840 × 2160",
-            _ => "Automatic"
+            _ => "Автоматически"
         };
-        OutputResolutionText.Text = $"Output: {output}";
+        OutputResolutionText.Text = $"На экране: {output}";
 
         if (!_loading && markDirty)
         {
-            ConfigStateText.Text = "Unsaved changes";
+            ConfigStateText.Text = "Есть несохранённые изменения";
         }
     }
+
+    private double SelectedGameSpeed() => GameSpeedSettings.FromStep(GameSpeedSlider.Value);
+
+    private void UpdateGameSpeedLabel()
+    {
+        if (GameSpeedValueText is not null && GameSpeedSlider is not null)
+            GameSpeedValueText.Text = SelectedGameSpeed().ToString("0.0", CultureInfo.GetCultureInfo("ru-RU")) + "×";
+    }
+
+    private void GameSpeedChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        UpdateGameSpeedLabel();
+        if (!_loading) RefreshSummary(markDirty: true);
+    }
+
+    private void ResetGameSpeedClicked(object sender, RoutedEventArgs e) => GameSpeedSlider.Value = 10;
 
     private void SettingChanged(object sender, RoutedEventArgs e)
     {
@@ -281,25 +375,25 @@ public partial class MainWindow : Window
                 SelectByTag(ResolutionCombo, "720p");
                 SelectByTag(RenderScaleCombo, "1");
                 SelectByTag(AnisotropicCombo, "-1");
-                PresetDescription.Text = "Original Xbox 360 rendering: 720p internal and game-controlled texture filtering.";
+                PresetDescription.Text = "Оригинальный рендеринг Xbox 360: внутренние 720p и фильтрация текстур под управлением игры.";
                 break;
             case "balanced":
                 SelectByTag(ResolutionCombo, "1080p");
                 SelectByTag(RenderScaleCombo, "2");
                 SelectByTag(AnisotropicCombo, "4");
-                PresetDescription.Text = "1440p internal rendering with 8× anisotropic filtering, presented at 1080p.";
+                PresetDescription.Text = "Внутренний рендеринг 1440p с 8× анизотропной фильтрацией и выводом в 1080p.";
                 break;
             case "enhanced":
                 SelectByTag(ResolutionCombo, "4k");
                 SelectByTag(RenderScaleCombo, "3");
                 SelectByTag(AnisotropicCombo, "5");
-                PresetDescription.Text = "True 4K internal rendering with 16× anisotropic filtering. Recommended for modern GPUs.";
+                PresetDescription.Text = "Настоящий внутренний рендеринг 4K с 16× анизотропной фильтрацией. Рекомендуется для современных видеокарт.";
                 break;
             case "ultra":
                 SelectByTag(ResolutionCombo, "4k");
                 SelectByTag(RenderScaleCombo, "4");
                 SelectByTag(AnisotropicCombo, "5");
-                PresetDescription.Text = "5K internal supersampling down to 4K. Experimental and very GPU-memory intensive.";
+                PresetDescription.Text = "Внутренний суперсэмплинг 5K с уменьшением до 4K. Экспериментальный режим с очень высоким расходом видеопамяти.";
                 break;
         }
         SelectByTag(DisplayModeCombo, "borderless");
@@ -312,15 +406,15 @@ public partial class MainWindow : Window
     {
         var dialog = new OpenFolderDialog
         {
-            Title = "Choose original gamefiles (default.xex and data)",
+            Title = "Выберите папку оригинальной игры (default.xex и data)",
             Multiselect = false
         };
         if (dialog.ShowDialog(this) == true)
         {
             if (!File.Exists(Path.Combine(dialog.FolderName, "default.xex")))
             {
-                MessageBox.Show(this, "This folder does not contain default.xex.",
-                    "Game not found", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(this, "В этой папке нет файла default.xex.",
+                    "Игра не найдена", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
             SetGameDirectory(dialog.FolderName);
@@ -344,7 +438,7 @@ public partial class MainWindow : Window
 
         var isoDialog = new OpenFileDialog
         {
-            Title = "Choose an ISO",
+            Title = "Выберите ISO-образ",
             Filter = "ISO (*.iso)|*.iso",
             CheckFileExists = true
         };
@@ -368,9 +462,9 @@ public partial class MainWindow : Window
         ExtractionOverlay.Visibility = Visibility.Visible;
         ExtractionProgressBar.IsIndeterminate = true;
         ExtractionPercentText.Text = "…";
-        ExtractionBytesText.Text = "Scanning…";
-        ExtractionPhaseText.Text = "Scanning disc…";
-        ExtractionFileText.Text = "Scanning for the GDFX header…";
+        ExtractionBytesText.Text = "Сканирование…";
+        ExtractionPhaseText.Text = "Сканирование диска…";
+        ExtractionFileText.Text = "Поиск заголовка GDFX…";
         ExtractionFolderList.Children.Clear();
         _rootChecks.Clear();
         HashPrompt.Visibility = Visibility.Collapsed;
@@ -410,7 +504,7 @@ public partial class MainWindow : Window
                 const string xexNewName = "default_new.xex";
                 string xexNew = Path.Combine(outDir, xexNewName);
                 string hash = disc.ExtractXex(outDir, _ => { }, progress, xexNewName);
-                progress.SetPhase("Checking default.xex SHA-256…");
+                progress.SetPhase("Проверка SHA-256 файла default.xex…");
                 (bool ok, string message) = GameCompatibilityInspector.CheckHash(hash);
                 if (!ok)
                 {
@@ -444,11 +538,11 @@ public partial class MainWindow : Window
                 catch (Exception moveEx)
                 {
                     throw new InvalidDataException(
-                        "Could not place default.xex: " + moveEx.Message);
+                        "Не удалось сохранить default.xex: " + moveEx.Message);
                 }
 
                 (files, bytes) = disc.ExtractRemaining(outDir, _ => { }, progress);
-                progress.SetPhase("Finalizing…");
+                progress.SetPhase("Завершение…");
             }
             catch (ExtractionCancelledException)
             {
@@ -469,24 +563,24 @@ public partial class MainWindow : Window
                 {
                     ExtractionOverlay.Visibility = Visibility.Collapsed;
                     ExtractionStatusText.Visibility = Visibility.Visible;
-                    ExtractionStatusText.Text = "Extraction stopped.";
+                    ExtractionStatusText.Text = "Извлечение остановлено.";
                     return;
                 }
                 if (error is not null)
                 {
                     ExtractionOverlay.Visibility = Visibility.Collapsed;
                     ExtractionStatusText.Visibility = Visibility.Visible;
-                    ExtractionStatusText.Text = "Extraction failed.";
-                    MessageBox.Show(this, error, "Could not extract ISO",
+                    ExtractionStatusText.Text = "Ошибка извлечения.";
+                    MessageBox.Show(this, error, "Не удалось извлечь ISO",
                         MessageBoxButton.OK, MessageBoxImage.Error);
                     return;
                 }
                 ExtractionProgressBar.Value = 100;
                 ExtractionPercentText.Text = "100%";
-                ExtractionPhaseText.Text = "Done";
+                ExtractionPhaseText.Text = "Готово";
                 ExtractionStatusText.Visibility = Visibility.Visible;
                 ExtractionStatusText.Text =
-                    $"Extracted {files:N0} files ({DiscExtraction.FormatSize(bytes)}) from {Path.GetFileName(isoPath)}.";
+                    $"Извлечено файлов: {files:N0} ({DiscExtraction.FormatSize(bytes)}) из {Path.GetFileName(isoPath)}.";
                 // SetGameDirectory reports readiness (including whether fable_2.exe
                 // is staged) in the status line and configuration badge.
                 SetGameDirectory(outDir);
@@ -505,7 +599,7 @@ public partial class MainWindow : Window
         }
         _stopRequested = true;
         StopButton.IsEnabled = false;
-        ExtractionPhaseText.Text = "Stopping…";
+        ExtractionPhaseText.Text = "Остановка…";
     }
 
     // The large "Cancel" button on the "unrecognized XEX" prompt: declines the
@@ -523,7 +617,7 @@ public partial class MainWindow : Window
         _hashDecision.TrySetResult(false);
         StopButton.IsEnabled = false;
         HashPrompt.Visibility = Visibility.Collapsed;
-        ExtractionPhaseText.Text = "Stopping…";
+        ExtractionPhaseText.Text = "Остановка…";
     }
 
     private void ExtractAnywaysClicked(object sender, RoutedEventArgs e)
@@ -531,7 +625,7 @@ public partial class MainWindow : Window
         if (_hashDecision is null) return;
         _hashDecision.TrySetResult(true);
         HashPrompt.Visibility = Visibility.Collapsed;
-        ExtractionPhaseText.Text = "Extracting…";
+        ExtractionPhaseText.Text = "Извлечение…";
     }
 
     // Show the "unrecognized XEX" prompt on the overlay (called on the UI
@@ -539,7 +633,7 @@ public partial class MainWindow : Window
     private void ShowHashPrompt(string message)
     {
         HashPromptText.Text = message;
-        ExtractionPhaseText.Text = "Unrecognized default.xex";
+        ExtractionPhaseText.Text = "Неизвестный default.xex";
         StopButton.IsEnabled = true;   // the user can still abort
         HashPrompt.Visibility = Visibility.Visible;
     }
@@ -574,8 +668,8 @@ public partial class MainWindow : Window
         ExtractionPercentText.Text = "0%";
         ExtractionBytesText.Text =
             $"{DiscExtraction.FormatSize(0)} / {DiscExtraction.FormatSize(progress.TotalBytes)}";
-        ExtractionPhaseText.Text = "Reading disc…";
-        ExtractionFileText.Text = "Reading disc…";
+        ExtractionPhaseText.Text = "Чтение диска…";
+        ExtractionFileText.Text = "Чтение диска…";
     }
 
     private void PushExtractionUi(ExtractionProgress progress)
@@ -634,8 +728,12 @@ public partial class MainWindow : Window
 
     private void AdvancedOptionsClicked(object sender, RoutedEventArgs e)
     {
-        LoadAdvanced();
-        SetPage(true);
+        try { LoadAdvanced(); SetPage(true); }
+        catch (Exception exception)
+        {
+            MessageBox.Show(this, exception.Message, "Не удалось прочитать расширенные настройки",
+                MessageBoxButton.OK, MessageBoxImage.Error);
+        }
     }
 
     private void BackClicked(object sender, RoutedEventArgs e) => SetPage(false);
@@ -655,7 +753,7 @@ public partial class MainWindow : Window
             BuildPatchRows();
         }
         finally { _loading = false; }
-        AdvancedStatusText.Text = "Editing fable2_config.toml (unsaved)";
+        AdvancedStatusText.Text = "Редактируется fable2_config.toml (изменения не сохранены)";
     }
 
     // Build one "press-to-capture host key -> guest input" row in the KeybindList.
@@ -685,7 +783,7 @@ public partial class MainWindow : Window
         capture.Border = keyField;
         capture.Text = new TextBlock
         {
-            Text = string.IsNullOrWhiteSpace(key) ? "press a key…" : key,
+            Text = string.IsNullOrWhiteSpace(key) ? "нажмите клавишу…" : key,
             Foreground = KeyFieldText,
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
@@ -725,7 +823,7 @@ public partial class MainWindow : Window
         {
             Content = "✕",
             MinWidth = 30,
-            ToolTip = "Remove this binding",
+            ToolTip = "Удалить это назначение",
             Style = (Style)FindResource("SecondaryButton"),
         };
         removeButton.Click += (s, e) =>
@@ -757,7 +855,7 @@ public partial class MainWindow : Window
         field.Background = KeyListeningBackground;
         field.BorderBrush = KeyListeningBorder;
         var capture = (KeyCaptureField)field.Tag!;
-        capture.Text.Text = "listening…";
+        capture.Text.Text = "ожидание ввода…";
         capture.Text.Foreground = KeyFieldText;
     }
 
@@ -775,7 +873,7 @@ public partial class MainWindow : Window
     private static void SetKeyCaptureIdle(Border field)
     {
         var capture = (KeyCaptureField)field.Tag!;
-        capture.Text.Text = string.IsNullOrWhiteSpace(capture.Value) ? "press a key…" : capture.Value;
+        capture.Text.Text = string.IsNullOrWhiteSpace(capture.Value) ? "нажмите клавишу…" : capture.Value;
         capture.Text.Foreground = KeyFieldText;
         field.Background = KeyIdleBackground;
         field.BorderBrush = KeyIdleBorder;
@@ -914,7 +1012,7 @@ public partial class MainWindow : Window
         var labelStack = new StackPanel();
         var nameBlock = new TextBlock
         {
-            Text = unstable ? name + "  (unstable)" : name,
+            Text = unstable ? name + "  (нестабильно)" : name,
             FontWeight = FontWeights.SemiBold,
         };
         if (unstable) nameBlock.Foreground = UnstableBrush;
@@ -969,28 +1067,124 @@ public partial class MainWindow : Window
     {
         PatchList.Children.Clear();
         _patchChecks.Clear();
-        AddPatchRow("Unlock Website Items", "unlock_website",
-            "Force-grant the Fable 2 website items at save load.", _advanced.UnlockWebsite);
-        AddPatchRow("Unlock Collectors Edition", "unlock_ce",
-            "Force-grant the Collectors Edition chest content at save load.", _advanced.UnlockCe);
-        AddPatchRow("Skip Intro Videos", "skip_intro_videos",
-            "Skip the Microsoft and Lionhead logo videos at boot.", _advanced.SkipIntroVideos);
-        AddPatchRow("High Tick Rate", "high_tick_rate",
-            "Double the LF tick from 15 to 30 Hz (Xenia \"High Tick Rate\").",
+        AddPatchRow("Разблокировать предметы с сайта", "unlock_website",
+            "Принудительно выдаёт предметы, которые раньше получались через сайт Fable 2, при загрузке сохранения.", _advanced.UnlockWebsite);
+        AddPatchRow("Разблокировать коллекционное издание", "unlock_ce",
+            "Принудительно выдаёт содержимое сундука коллекционного издания при загрузке сохранения.", _advanced.UnlockCe);
+        AddPatchRow("Пропускать вступительные ролики", "skip_intro_videos",
+            "Пропускает ролики с логотипами Microsoft и Lionhead при запуске.", _advanced.SkipIntroVideos);
+        AddPatchRow("Повышенная частота тиков", "high_tick_rate",
+            "Увеличивает частоту LF-тиков с 15 до 30 Гц (режим Xenia \"High Tick Rate\").",
             _advanced.HighTickRate, unstable: true,
             onUnchecked: () => SetPatchChecked("higher_hf_tick_rate", false));
-        AddPatchRow("Higher HF Tick Rate", "higher_hf_tick_rate",
-            "Double the HF tick from 30 to 60 Hz (Xenia \"Higher HF Tick Rate\"). Requires High Tick Rate.",
+        AddPatchRow("Повышенная частота HF-тиков", "higher_hf_tick_rate",
+            "Увеличивает частоту HF-тиков с 30 до 60 Гц (режим Xenia \"Higher HF Tick Rate\"). Требует включённого режима «Повышенная частота тиков».",
             _advanced.HigherHfTickRate, unstable: true,
             onChecked: () => SetPatchChecked("high_tick_rate", true));
-        AddPatchRow("Disable Motion Blur", "disable_motion_blur",
-            "Zero the camera's full-screen motion blur amount each frame.", _advanced.DisableMotionBlur);
-        AddPatchRow("Realtime Texture Morphing", "realtime_texture_morphing",
-            "Render the hero/dog morphed skin textures on the GPU (fixes the black hero/dog).",
-            _advanced.RealtimeTextureMorphing);
-        AddPatchRow("Hero/Dog Texture Readback", "hero_dog_texture_readback",
-            "CPU readback of the hero/dog texture resolve. Superseded by realtime morphing.",
-            _advanced.HeroDogTextureReadback);
+        AddPatchRow("Отключить размытие в движении", "disable_motion_blur",
+            "Полностью отключает полноэкранное размытие при движении камеры.", _advanced.DisableMotionBlur);
+        AddTextureModeRow();
+        AddDualShockRow();
+    }
+
+    private void AddDualShockRow()
+    {
+        _dualShockCheck = new CheckBox
+        {
+            IsChecked = LauncherState.LoadDualShockEnabled(),
+            VerticalAlignment = VerticalAlignment.Top,
+            Margin = new Thickness(10, 0, 0, 0),
+        };
+
+        var text = new StackPanel();
+        text.Children.Add(new TextBlock
+        {
+            Text = "Использовать геймпад DualShock",
+            FontWeight = FontWeights.SemiBold,
+        });
+        text.Children.Add(new TextBlock
+        {
+            Text = "Переключает экранные подсказки на стиль PlayStation во всех поддержанных GUI-путях: A→✕, B→○, X→□, Y→△, LB→L1, RB→R1, LT→L2, RT→R2. Включает отдельный атлас меню (Принять/Назад/Отмена) и HUD. Внутренняя логика игры остаётся Xbox-совместимой.",
+            FontSize = 12,
+            Foreground = MutedBrush,
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 2, 0, 0),
+        });
+        text.Children.Add(new TextBlock
+        {
+            Text = "При первом запуске создаётся резервная копия data\\art\\gui\\gui_textures.bnk.xbox-prompts-backup. Снятие галочки и следующий запуск восстанавливают исходные иконки.",
+            FontSize = 11,
+            Foreground = MutedBrush,
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 6, 0, 0),
+        });
+
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        Grid.SetColumn(text, 0);
+        Grid.SetColumn(_dualShockCheck, 1);
+        grid.Children.Add(text);
+        grid.Children.Add(_dualShockCheck);
+
+        PatchList.Children.Add(new Border
+        {
+            Child = grid,
+            CornerRadius = new CornerRadius(8),
+            Padding = new Thickness(14, 10, 14, 10),
+            Margin = new Thickness(0, 0, 0, 10),
+            Background = new SolidColorBrush(Color.FromArgb(0x22, 0x2F, 0x49, 0x41)),
+        });
+    }
+
+    private void AddTextureModeRow()
+    {
+        var stack = new StackPanel();
+        stack.Children.Add(new TextBlock { Text = "Текстуры героя и собаки", FontWeight = FontWeights.SemiBold });
+        _textureModeCombo = new ComboBox { Margin = new Thickness(0, 8, 0, 8) };
+        _textureModeCombo.Items.Add(new ComboBoxItem { Tag = HeroDogTextureMode.GpuRealtime, Content = "Морфинг на GPU в реальном времени" });
+        _textureModeCombo.Items.Add(new ComboBoxItem { Tag = HeroDogTextureMode.CompatibilityReadback, Content = "Совместимый Readback — альтернативный режим" });
+        _textureModeCombo.Items.Add(new ComboBoxItem { Tag = HeroDogTextureMode.DiagnosticOff, Content = "Отключено — только диагностика (возможны чёрные текстуры)" });
+        _textureModeCombo.SelectedIndex = (int)TextureModeSettings.Get(_advanced);
+        _textureModeHelp = new TextBlock { TextWrapping = TextWrapping.Wrap, FontSize = 12, Margin = new Thickness(0, 0, 0, 8) };
+        _textureInputSummary = new TextBlock { TextWrapping = TextWrapping.Wrap, FontSize = 11, Foreground = MutedBrush };
+        _readbackOverride = new CheckBox
+        {
+            Content = new TextBlock { Text = "Для этого запуска принудительно задать адрес Readback текстур героя/собаки (переопределяет конфигурацию SDK и переменные среды только для этого параметра).",
+                TextWrapping = TextWrapping.Wrap },
+            IsChecked = false, Margin = new Thickness(0, 8, 0, 8)
+        };
+        _textureModeCombo.SelectionChanged += (_, _) => UpdateTextureModeHelp();
+        stack.Children.Add(_textureModeCombo); stack.Children.Add(_textureModeHelp);
+        stack.Children.Add(_readbackOverride); stack.Children.Add(_textureInputSummary);
+        PatchList.Children.Add(new Border { Child = stack, CornerRadius = new CornerRadius(8),
+            Padding = new Thickness(14), Margin = new Thickness(0, 0, 0, 10),
+            Background = new SolidColorBrush(Color.FromArgb(0x22, 0x2F, 0x49, 0x41)) });
+        UpdateTextureModeHelp();
+    }
+
+    private HeroDogTextureMode SelectedTextureMode() =>
+        (_textureModeCombo?.SelectedItem as ComboBoxItem)?.Tag is HeroDogTextureMode mode
+            ? mode : TextureModeSettings.Get(_advanced);
+
+    private void UpdateTextureModeHelp()
+    {
+        if (_textureModeHelp is null || _readbackOverride is null) return;
+        var mode = SelectedTextureMode();
+        _textureModeHelp.Text = mode switch
+        {
+            HeroDogTextureMode.GpuRealtime => "Использует существующий GPU-перехват морфинга. При сохранении старый переключатель Readback отключается. Стабильность всё равно зависит от игры и среды выполнения.",
+            HeroDogTextureMode.CompatibilityReadback => "Отключает принудительный GPU-морфинг и включает выборочное чтение результата через CPU. Это альтернативный режим, а не гарантированное исправление вылетов. Сохраните настройки и перезапустите игру.",
+            _ => "ВНИМАНИЕ: оба исправления текстур будут отключены. Герой и собака могут снова стать чёрными. Используйте только для контролируемой диагностики."
+        };
+        _textureModeHelp.Foreground = mode == HeroDogTextureMode.DiagnosticOff ? UnstableBrush : MutedBrush;
+        _readbackOverride.IsEnabled = mode == HeroDogTextureMode.CompatibilityReadback;
+        if (!_readbackOverride.IsEnabled) _readbackOverride.IsChecked = false;
+        if (_textureInputSummary is not null)
+        {
+            try { _textureInputSummary.Text = "Загруженные / последние сохранённые настройки (сохраните, чтобы применить новый выбор):\n" + TextureModeSettings.DescribeRequest(_executableDirectory ?? AppContext.BaseDirectory, _advanced); }
+            catch (Exception e) { _textureInputSummary.Text = "Не удалось проверить настройки SDK: " + e.Message; }
+        }
     }
 
     private void CollectPatches()
@@ -1058,11 +1252,12 @@ public partial class MainWindow : Window
     {
         if (_executableDirectory is null)
         {
-            MessageBox.Show(this, "Choose the game folder first.", "Game not found",
+            MessageBox.Show(this, "Сначала выберите папку игры.", "Игра не найдена",
                 MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
+        _advanced.GameSpeed = SelectedGameSpeed();
         _advanced.MouseLook = MouseLookCheck.IsChecked == true;
         _advanced.MouseLookScale = (int)MouseSensitivitySlider.Value;
         _advanced.HotFuncYieldEvery = int.TryParse(HotFuncYieldBox.Text, NumberStyles.Integer,
@@ -1070,16 +1265,23 @@ public partial class MainWindow : Window
             ? Math.Clamp(yieldEvery, 0, 4096) : (int)HotFuncYieldSlider.Value;
         _advanced.KeyboardGamepadMap = CollectKeybinds();
         CollectPatches();
+        var mode = SelectedTextureMode();
+        if (mode == HeroDogTextureMode.DiagnosticOff &&
+            MessageBox.Show(this, "Отключить оба исправления текстур? Герой и собака могут отображаться чёрными.",
+                "Только диагностический режим", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+        TextureModeSettings.Apply(_advanced, mode);
 
         string path = AdvancedConfigPath();
         try
         {
             Fable2ConfigFile.Write(path, _advanced);
-            AdvancedStatusText.Text = $"Saved {Path.GetFileName(path)}.";
+            LauncherState.SaveDualShockEnabled(_dualShockCheck?.IsChecked == true);
+            AdvancedStatusText.Text = $"Сохранено: {Path.GetFileName(path)}. Перезапустите игру, чтобы применить режим.";
+            UpdateTextureModeHelp();
         }
         catch (Exception exception)
         {
-            MessageBox.Show(this, exception.Message, "Could not save advanced settings",
+            MessageBox.Show(this, exception.Message, "Не удалось сохранить расширенные настройки",
                 MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
@@ -1112,5 +1314,24 @@ internal static class LauncherState
             // Graphics saving reports write failures separately. No global
             // fallback: different installations must not inherit other paths.
         }
+    }
+
+    private static readonly string DualShockStatePath = Path.Combine(AppContext.BaseDirectory,
+        "launcher-dualshock.txt");
+
+    public static bool LoadDualShockEnabled()
+    {
+        try
+        {
+            if (!File.Exists(DualShockStatePath)) return false;
+            string value = File.ReadAllText(DualShockStatePath).Trim();
+            return value.Equals("true", StringComparison.OrdinalIgnoreCase) || value == "1";
+        }
+        catch { return false; }
+    }
+
+    public static void SaveDualShockEnabled(bool enabled)
+    {
+        File.WriteAllText(DualShockStatePath, enabled ? "true" : "false");
     }
 }

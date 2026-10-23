@@ -9,6 +9,7 @@ Directory.CreateDirectory(testDirectory);
 
 try
 {
+    GameSpeedV18Tests.Run(testDirectory);
     string configPath = Path.Combine(testDirectory, "fable_2.toml");
     const string original = "# existing config\nresolution = \"720p\" # keep this note\ncustom_mod = true\n";
     File.WriteAllText(configPath, original);
@@ -119,7 +120,7 @@ try
         Require(result.Supported == supported.Contains(version), "catalogue compatibility differs: " + version.Id);
         Require(result.Message == version.Reason, "catalogue reason differs: " + version.Id);
         if (!result.Supported) continue;
-        Require(result.Profile == version.Id && result.Label == version.Name + " detected", "catalogue identity differs");
+        Require(result.Profile == version.Id && result.Label == "Обнаружена " + version.Name, "catalogue identity differs");
         Require(GameCompatibilityInspector.Classify(version.Hash.ToUpperInvariant(), files.Contains, directories.Contains).Supported,
             "case-insensitive SHA-256 recognition failed");
         foreach (string marker in version.RequiredFiles)
@@ -335,12 +336,14 @@ try
     Require(File.Exists(advPath + ".launcher-backup"), "fable2_config backup missing");
     Console.WriteLine("Advanced options (fable2_config.toml) roundtrip and preservation passed.");
 
+    TextureDiagnosticsTests.Run(testDirectory);
+
     if (args.Length > 0)
     {
         GameCompatibility compatibility = GameCompatibilityInspector.Inspect(args[0]);
         Console.WriteLine($"Compatibility probe: {compatibility.Label} — {compatibility.Message}");
         if (args.Contains("--expect-german-goty", StringComparer.OrdinalIgnoreCase))
-            Require(compatibility.Label == "German GOTY detected", "German GOTY profile was not recognized");
+            Require(compatibility.Label == "Обнаружена German GOTY", "German GOTY profile was not recognized");
     }
 }
 finally

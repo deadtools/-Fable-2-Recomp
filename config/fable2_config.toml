@@ -24,6 +24,15 @@
 # Default: 1
 config_version = 1
 
+[gameplay]
+# Global guest-clock speed, applied at launch. This is NOT an FPS cap.
+# 0.1 = ten times slower; 0.5 = half speed; 1.0 = original; 2.0 = double.
+# Allowed range: 0.1..2.0, in steps of 0.1. Restart the game after changing.
+# Experimental: menus/timers also use guest time; audio/video sync may differ.
+# Default: 1.0
+# Requires the v18 native executable AND its matching runtime DLL.
+game_speed = 1.0
+
 [input]
 # Host keyboard/mouse -> guest gamepad map: "Key:Button,Key:Button,..." (one
 # line; do not add spaces or newlines inside the string). Key = Windows
@@ -95,7 +104,6 @@ higher_hf_tick_rate = false
 # the game asks for blur. false = blur as in the original game.
 # Default: false
 disable_motion_blur = false
-
 
 # Realtime Texture Morphing (mid-asm hook fable2_hook_realtime_texture_morphing):
 # the hero's and dog's morphed skin textures are rendered straight into their

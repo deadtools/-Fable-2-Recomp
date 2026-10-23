@@ -1,4 +1,27 @@
-# Fable 2 — ReXGlue Recompiled Project
+# Fable 2 — ReXGlue Recompiled Project (deadtools fork)
+
+> **Это форк** проекта [himdo/Fable-2-Recomp](https://github.com/himdo/Fable-2-Recomp) (версия 1.5.0) с доработками от [deadtools](https://github.com/deadtools).
+> Оригинальный автор — **Himdo**, лицензия MIT сохранена (см. [LICENSE](LICENSE)).
+>
+> **This is a fork** of [himdo/Fable-2-Recomp](https://github.com/himdo/Fable-2-Recomp) 1.5.0 with additional changes by [deadtools](https://github.com/deadtools). All credit for the original project goes to **Himdo**; the MIT license is retained.
+
+## Что нового в этом форке / What's new
+
+**Лаунчер 1.6.0**
+- **Текстуры героя и собаки** — выбор режима: морфинг на GPU в реальном времени, совместимый Readback или диагностический (`TextureModeSettings`, `src/core/texture_mode_policy.h`). Добавлен локальный диагностический отчёт о запуске (`LaunchDiagnostics`, `tools/texture-diagnostics/`).
+- **Подсказки DualShock / PlayStation** — переключатель Xbox ↔ PlayStation: патчер экранных подсказок, иконок меню и HUD (`DualShock*.cs`, `tools/deploy-dualshock-menu.ps1`). Оригинальные файлы игры сохраняются в резервную копию и восстанавливаются при отключении. Подробнее: [DUALSHOCK_PROMPTS_RU.md](DUALSHOCK_PROMPTS_RU.md).
+- **Скорость игры 0,1–2,0×** (шаг 0,1, по умолчанию 1,0×) — точные дробные коэффициенты часов, корректное масштабирование ожиданий и таймеров (`src/core/fable2_game_speed.h`, `game_speed_*.h`, `tools/prepare_game_speed_sdk.py`). Для значений, отличных от 1,0×, нужна пересборка `fable_2.exe`. Подробнее: [docs/GAME_SPEED_V18.md](docs/GAME_SPEED_V18.md).
+- Интерфейс лаунчера переведён на русский язык.
+
+![DualShock menu badge](docs/screenshots/dualshock-menu-badge.png)
+
+**Сборка / Build**
+- `BUILD-LAUNCHER-LOCAL.cmd` — тесты и сборка только лаунчера (.NET 8 SDK), без пересборки игры.
+- Правки SDK для скорости игры вносятся автоматически скриптом `tools/prepare_game_speed_sdk.py` при сборке рантайма (`tools/build_runtime_sdk.cmd`); сабмодуль `thirdparty/rexglue-sdk` не изменён.
+- Пути в скриптах развёртывания по умолчанию указывают на `D:\Fable2\...` — поменяйте под себя.
+
+---
+
 First and for most this project was made to test the capabilities of local and open source AI. This project was made using Qwen3.8 27b. After about an hour it got the game running. Then after a large amount of human trial and error I was able to get enough of the functions mapped to be able to complete the game. I currently do not consider this to be fully complete as I have yet to 100% the game. The sha256 of the iso that started this project is: "685a0d3bea9718812f17bcd155907a5359a548b6d3d8342dd2a6c944f45e35ff" and its the Fable 2 GOTY for USA and Europe.
 
 Recompilation of Fable 2 (Xbox 360, title ID 4D5307F1) using the [ReXGlue SDK](https://github.com/rexglue/rexglue-sdk) v0.10.0. Guest PPC code is statically recompiled to C++ at build time by `rexglue codegen`, driven by `fable_2_manifest.toml`.

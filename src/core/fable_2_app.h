@@ -30,6 +30,8 @@
 #include "dir_manifest_heal.h"
 #include "fable2_address_scan.h"
 #include "fable2_config.h"
+#include "fable2_game_speed.h"
+#include "texture_mode_policy.h"
 #include "fable2_patches.h"
 // #include "fable2_deadbeef_overlay.h"
 // 30fps-cap instrumentation (writes fps_probe.log next to the exe). Disabled
@@ -138,6 +140,7 @@ class Fable2App : public rex::ReXApp {
   }
 
   void OnPostSetup() override {
+    fable2::speed::ApplyAfterRuntimeSetup();
     fable2::branding::Apply(window());
     // Hero/dog black-texture fix (see plans/hero-dog-texture-readback.md).
     // Approach + guest base 0x12704000 credit just-harry's Unofficial Xenia
@@ -149,11 +152,30 @@ class Fable2App : public rex::ReXApp {
     // the app and the SDK only knows "read back resolves to these addresses".
     {
       const fable2::config::Values& cfg = fable2::config::Get();
-      const std::string_view force_addr =
-          cfg.hero_dog_texture_readback ? "0x12704000" : "";
-      if (rex::cvar::GetFlagSource("readback_resolve_force_addresses") ==
-          rex::cvar::Source::kDefault) {
-        if (rex::cvar::SetFlagByName("readback_resolve_force_addresses", force_addr)) {
+      const std::string_view force_addr = fable2::textures::ReadbackSeed(cfg.hero_dog_texture_readback);
+      const auto source_name = [](rex::cvar::Source source) -> const char* {
+        switch (source) {
+          case rex::cvar::Source::kDefault: return "default";
+          case rex::cvar::Source::kConfig: return "sdk-config";
+          case rex::cvar::Source::kEnvironment: return "environment";
+          case rex::cvar::Source::kCommandLine: return "command-line";
+          case rex::cvar::Source::kRuntime: return "runtime";
+        }
+        return "unknown";
+      };
+      REXSYS_INFO("[texture-mode] requested={} realtime_texture_morphing={} hero_dog_texture_readback={}",
+                  fable2::textures::Name(fable2::textures::RequestedMode(
+                      cfg.realtime_texture_morphing, cfg.hero_dog_texture_readback)),
+                  cfg.realtime_texture_morphing, cfg.hero_dog_texture_readback);
+      if (cfg.realtime_texture_morphing && cfg.hero_dog_texture_readback) {
+        REXSYS_WARN("[texture-mode] both legacy toggles are enabled; GPU morphing is forced. "
+                    "Select one mode in the launcher for an unambiguous test.");
+      }
+      bool seeded = false;
+      const auto seed_source = rex::cvar::GetFlagSource("readback_resolve_force_addresses");
+      if (seed_source == rex::cvar::Source::kDefault) {
+        seeded = rex::cvar::SetFlagByName("readback_resolve_force_addresses", force_addr);
+        if (seeded) {
           REXSYS_INFO("[fable2-config] seeded readback_resolve_force_addresses "
                       "from fable2_config.toml (hero_dog_texture_readback={})",
                       cfg.hero_dog_texture_readback);
@@ -162,6 +184,31 @@ class Fable2App : public rex::ReXApp {
                       "rejected '{}'; hero/dog readback fix may be inactive",
                       std::string{force_addr});
         }
+      } else {
+        REXSYS_INFO("[texture-runtime] seed skipped: readback_resolve_force_addresses is owned by {}. "
+                    "Existing SDK/config/environment/CLI priorities are preserved.", source_name(seed_source));
+      }
+      // Values below are actually read from the registered runtime AFTER plugin
+      // load and seeding. They are a startup snapshot, not proof of GPU work or
+      // a guarantee that the value will not be changed later in the F3 console.
+      const auto registered = rex::cvar::ListFlags();
+      for (std::string_view key : {std::string_view{"readback_resolve_force_addresses"},
+                                   std::string_view{"readback_resolve"},
+                                   std::string_view{"resolution_scale"}}) {
+        if (std::find(registered.begin(), registered.end(), key) == registered.end()) {
+          REXSYS_WARN("[texture-runtime] {} is not registered in the loaded SDK/plugin", key);
+          continue;
+        }
+        REXSYS_INFO("[texture-runtime] startup {}='{}' source={} seeded_by_fable_config={}",
+                    key, rex::cvar::GetFlagByName(key), source_name(rex::cvar::GetFlagSource(key)),
+                    seeded && key == "readback_resolve_force_addresses");
+      }
+      const auto active_addresses = rex::cvar::GetFlagByName("readback_resolve_force_addresses");
+      const auto active_global = rex::cvar::GetFlagByName("readback_resolve");
+      if (!cfg.realtime_texture_morphing && active_addresses.empty() &&
+          (active_global.empty() || active_global == "none")) {
+        REXSYS_WARN("[texture-runtime] no forced GPU morphing and no active readback path at setup; "
+                    "black hero/dog textures may result. No setting was changed automatically.");
       }
     }
     // Dog fur Z-fighting fix (docs/RUNTIME_FIXES.md): the shell-fur pixel shader
@@ -309,6 +356,7 @@ class Fable2App : public rex::ReXApp {
     const std::filesystem::path exe_dir =
         rex::filesystem::GetExecutableFolder();
     fable2::config::Load(exe_dir / "fable2_config.toml");
+    fable2::speed::PrepareBeforeRuntime();
 
     // Seed cvars from the config. Only when the cvar is still at its
     // compiled default (source kDefault), so higher-priority sources --

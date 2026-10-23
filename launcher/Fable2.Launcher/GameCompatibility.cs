@@ -12,7 +12,7 @@ public static class GameCompatibilityInspector
     {
         string xex = Path.Combine(directory, "default.xex");
         if (!File.Exists(xex))
-            return new("Content missing", "default.xex was not found in the selected game folder.", false);
+            return new("Файлы игры не найдены", "В выбранной папке игры не найден default.xex.", false);
         using FileStream input = File.OpenRead(xex);
         string hash = Convert.ToHexString(SHA256.HashData(input)).ToLowerInvariant();
         return Classify(hash,
@@ -34,11 +34,11 @@ public static class GameCompatibilityInspector
             if (!version.Compatible)
                 return (false, version.Reason);
             if (version.CodeGroup != GameVersions.CodeGroup)
-                return (false, version.Name + " detected, but this executable's guest-code group is not compiled into this build.");
+                return (false, "Обнаружена " + version.Name + ", но группа гостевого кода этой версии не включена в данную сборку.");
             return (true, version.Name);
         }
-        return (false, "Unknown default.xex SHA-256: " + hash +
-            " This project only accepts validated builds, so nothing was extracted.");
+        return (false, "Неизвестный SHA-256 файла default.xex: " + hash +
+            ". Проект принимает только проверенные версии, поэтому извлечение не продолжено.");
     }
 
     // Pure, catalogue-driven classification; tests supply marker predicates.
@@ -50,20 +50,20 @@ public static class GameCompatibilityInspector
         {
             if (!string.Equals(hash, version.Hash, StringComparison.OrdinalIgnoreCase)) continue;
             if (!version.Compatible)
-                return new(version.Name + " detected", version.Reason, false);
+                return new("Обнаружена " + version.Name, version.Reason, false);
             if (version.CodeGroup != GameVersions.CodeGroup)
-                return new(version.Name + " detected",
-                    "This executable's guest-code group is not compiled into this build.", false);
+                return new("Обнаружена " + version.Name,
+                    "Группа гостевого кода этой версии не включена в данную сборку.", false);
             bool hasRejectionRule = version.RejectFiles.Length + version.RejectDirectories.Length > 0;
             if (hasRejectionRule && version.RejectFiles.All(hasFile) &&
                 version.RejectDirectories.All(hasDirectory))
-                return new("Mixed files detected",
-                    "This XEX is paired with incompatible retail/TU1 content. Use a complete matching dump.", false);
+                return new("Обнаружена несовместимая смесь файлов",
+                    "Этот XEX используется с несовместимыми файлами retail/TU1. Используйте полный комплект файлов одной версии.", false);
             if (!version.RequiredFiles.All(hasFile))
-                return new("Incomplete " + version.Name + " files",
-                    "Required content or localization is missing. Select a complete matching dump.", false);
-            return new(version.Name + " detected", version.Reason, true, version.Id);
+                return new("Неполный комплект файлов " + version.Name,
+                    "Отсутствуют необходимые данные или локализация. Выберите полный комплект файлов соответствующей версии.", false);
+            return new("Обнаружена " + version.Name, version.Reason, true, version.Id);
         }
-        return new("Unknown XEX build", $"Unknown default.xex SHA-256: {hash}", false);
+        return new("Неизвестная версия XEX", $"Неизвестный SHA-256 файла default.xex: {hash}", false);
     }
 }

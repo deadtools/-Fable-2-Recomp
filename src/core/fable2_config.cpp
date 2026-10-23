@@ -11,6 +11,7 @@
 // still runs), so a hand edit can never wedge the launch.
 
 #include "fable2_config.h"
+#include "game_speed_policy.h"
 
 #include <array>
 #include <format>
@@ -54,6 +55,15 @@ R"TOML_EOF(# ===================================================================
 # tolerates any version it does not know about.
 # Default: 1
 config_version = 1
+
+[gameplay]
+# Global guest-clock speed, applied at launch. This is NOT an FPS cap.
+# 0.1 = ten times slower; 0.5 = half speed; 1.0 = original; 2.0 = double.
+# Allowed range: 0.1..2.0, in steps of 0.1. Restart the game after changing.
+# Experimental: menus/timers also use guest time; audio/video sync may differ.
+# Default: 1.0
+# Requires the v18 native executable AND its matching runtime DLL.
+game_speed = 1.0
 
 [input]
 # Host keyboard/mouse -> guest gamepad map: "Key:Button,Key:Button,..." (one
@@ -224,8 +234,8 @@ bool Load(const std::filesystem::path& path) {
 
   // Warn about unknown top-level sections (usually a typo or a file written
   // for a newer build).
-  static constexpr std::array<std::string_view, 4> kKnownSections = {
-      "general", "input", "patches", "perf"};
+  static constexpr std::array<std::string_view, 5> kKnownSections = {
+      "general", "gameplay", "input", "patches", "perf"};
   for (const auto& [key, value] : root) {
     const bool known =
         std::ranges::find(kKnownSections, key.str()) != kKnownSections.end();
@@ -240,6 +250,19 @@ bool Load(const std::filesystem::path& path) {
     values.config_version = static_cast<int32_t>(
         Read<int64_t>(*general.as_table(), "general", "config_version",
                       "integer", 1));
+  }
+  const auto speed_node = root["gameplay"]["game_speed"];
+  if (speed_node) {
+    if (speed_node.is_integer() || speed_node.is_floating_point()) {
+      const double raw = speed_node.value<double>().value_or(1.0);
+      values.game_speed = fable2::speed::Normalize(raw);
+      if (raw != values.game_speed) {
+        REXSYS_WARN("[game-speed] normalized {} to {} (range 0.1..2.0, step 0.1)",
+                    raw, values.game_speed);
+      }
+    } else {
+      REXSYS_WARN("[game-speed] expected a number; using 1.0x");
+    }
   }
   const toml::path input_path{"input"};
   const auto input = root[input_path];

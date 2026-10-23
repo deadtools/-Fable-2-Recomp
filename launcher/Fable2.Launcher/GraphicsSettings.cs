@@ -20,14 +20,14 @@ public static class GraphicsSettings
         {
             "720p" => (1280, 720), "1080p" => (1920, 1080),
             "1440p" => (2560, 1440), "4k" => (3840, 2160),
-            _ => throw new ArgumentException("Unknown output resolution")
+            _ => throw new ArgumentException("Неизвестное выходное разрешение")
         };
         if (!new[] { "1", "2", "3", "4" }.Contains(scale) ||
             !new[] { "-1", "1", "2", "3", "4", "5" }.Contains(anisotropic) ||
             !new[] { "none", "fxaa", "fxaa_extreme" }.Contains(antiAliasing) ||
             !new[] { "windowed", "borderless", "exclusive" }.Contains(displayMode) ||
             !GraphicsOptions.FrameLimits.Any(option => option.Value == frameLimit))
-            throw new ArgumentException("Unsupported graphics setting");
+            throw new ArgumentException("Неподдерживаемая настройка графики");
 
         return new(StringComparer.OrdinalIgnoreCase)
         {

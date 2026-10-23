@@ -7,6 +7,8 @@ if not defined SDK set "SDK=%ROOT%\thirdparty\rexglue-sdk"
 set "OUT=%ROOT%\out\tests\runtime-unit-tests"
 if not exist "%OUT%" mkdir "%OUT%"
 python "%ROOT%\tools\generate_game_versions.py" --check || exit /b 1
+clang++ -std=c++23 "%~dp0native\test_texture_mode_policy.cpp" -o "%OUT%\texture-mode.exe" || exit /b 1
+"%OUT%\texture-mode.exe" || exit /b 1
 clang++ -std=c++23 -I"%SDK%\include" "%~dp0native\test_clocked_audio_sink.cpp" -o "%OUT%\audio.exe" || exit /b 1
 "%OUT%\audio.exe" || exit /b 1
 clang++ -std=c++23 -I"%SDK%\include" "%~dp0native\test_frame_limiter.cpp" "%SDK%\src\graphics\frame_limiter.cpp" -o "%OUT%\limiter.exe" || exit /b 1

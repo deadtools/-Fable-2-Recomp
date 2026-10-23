@@ -1,7 +1,7 @@
 <Window x:Class="Fable2Launcher.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Fable 2 Recompiled — Launcher"
+        Title="Fable II Recompiled — Лаунчер 1.6"
         Icon="/Assets/app-icon.png"
         Width="930" Height="700" MinWidth="820" MinHeight="640"
         WindowStartupLocation="CenterScreen"
@@ -51,16 +51,18 @@
       <StackPanel>
         <TextBlock Text="F A B L E  I I" FontFamily="Georgia" FontSize="36" FontWeight="Bold"
                    Foreground="#FFFFD888" />
-        <TextBlock Text="RECOMP LAUNCHER" FontSize="13" FontWeight="SemiBold"
+        <TextBlock Text="ЛАУНЧЕР РЕКОМПИЛЯЦИИ" FontSize="13" FontWeight="SemiBold"
                    Foreground="#FFC69A46" Margin="2,3,0,0" />
+        <TextBlock Text="Версия 1.6.0" FontSize="12" FontWeight="SemiBold"
+                   Foreground="#FFB9D6C7" Margin="2,7,0,0" />
       </StackPanel>
       <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
         <Border Background="#332A3D36" BorderBrush="#556B887B"
                 BorderThickness="1" CornerRadius="18" Padding="13,7">
-          <TextBlock x:Name="ConfigStateText" Text="Configuration ready" FontSize="12"
+          <TextBlock x:Name="ConfigStateText" Text="Конфигурация готова" FontSize="12"
                      Foreground="#FFB9D6C7" />
         </Border>
-        <Button x:Name="AdvancedOptionsButton" Content="Advanced Options"
+        <Button x:Name="AdvancedOptionsButton" Content="Расширенные настройки"
                 Click="AdvancedOptionsClicked" Style="{StaticResource SecondaryButton}"
                 Margin="14,0,0,0" />
       </StackPanel>
@@ -70,16 +72,71 @@
       <!-- Main page content -->
       <ScrollViewer x:Name="MainContent" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
       <Grid Margin="34,0,34,22">
+        <Grid.RowDefinitions>
+          <RowDefinition Height="Auto" />
+          <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
         <Grid.ColumnDefinitions>
           <ColumnDefinition Width="3*" />
           <ColumnDefinition Width="18" />
           <ColumnDefinition Width="2*" />
         </Grid.ColumnDefinitions>
 
-        <StackPanel Grid.Column="0">
+        <!-- Release notes for this launcher, not the base game's version. -->
+        <Border Grid.Row="0" Grid.ColumnSpan="3" Style="{StaticResource Panel}"
+                Margin="0,0,0,18" Padding="18,14">
+          <StackPanel>
+            <TextBlock Text="Что нового в лаунчере 1.6" FontSize="17" FontWeight="SemiBold"
+                       Foreground="#FFFFE8B4" Margin="0,0,0,8" />
+            <TextBlock FontSize="12" TextWrapping="Wrap" Margin="0,0,0,5">
+              <Run Foreground="#FF7ECCB5" Text="✓  " />
+              <Run Text="Исправлено отображение текстур героя и собаки." />
+            </TextBlock>
+            <TextBlock FontSize="12" TextWrapping="Wrap" Margin="0,0,0,5">
+              <Run Foreground="#FF7ECCB5" Text="✓  " />
+              <Run Text="Добавлено переключение значков управления Xbox / PlayStation (DualShock)." />
+            </TextBlock>
+            <TextBlock FontSize="12" TextWrapping="Wrap">
+              <Run Foreground="#FF7ECCB5" Text="✓  " />
+              <Run Text="Добавлена регулировка скорости игры: 0,1–2,0×, шаг 0,1; по умолчанию 1,0×." />
+            </TextBlock>
+            <TextBlock FontSize="12" Margin="0,12,0,0" Foreground="{StaticResource MutedTextBrush}">
+              <Run Text="Автор этих доработок: " />
+              <Hyperlink NavigateUri="https://github.com/deadtools"
+                         RequestNavigate="DeadtoolsLinkRequested"
+                         Foreground="#FFFFD888" TextDecorations="Underline">deadtools</Hyperlink>
+            </TextBlock>
+          </StackPanel>
+        </Border>
+
+        <StackPanel Grid.Row="1" Grid.Column="0">
+          <Border Style="{StaticResource Panel}" Margin="0,0,0,18">
+            <StackPanel>
+              <TextBlock Text="Скорость игры" Style="{StaticResource SectionTitle}" />
+              <DockPanel Margin="0,0,0,8">
+                <Button DockPanel.Dock="Right" Content="Обычная: 1,0&#xD7;"
+                        Click="ResetGameSpeedClicked" Style="{StaticResource SecondaryButton}" />
+                <TextBlock x:Name="GameSpeedValueText" Text="1,0&#xD7;" FontSize="24"
+                           FontWeight="SemiBold" VerticalAlignment="Center" />
+              </DockPanel>
+              <Slider x:Name="GameSpeedSlider" Minimum="1" Maximum="20" Value="10"
+                      TickFrequency="1" IsSnapToTickEnabled="True" SmallChange="1" LargeChange="1"
+                      TickPlacement="BottomRight" IsMoveToPointEnabled="True"
+                      AutomationProperties.Name="Скорость игры"
+                      ValueChanged="GameSpeedChanged" />
+              <DockPanel Margin="0,4,0,0">
+                <TextBlock DockPanel.Dock="Right" Text="2,0&#xD7;" HorizontalAlignment="Right" />
+                <TextBlock Text="0,1&#xD7;" />
+              </DockPanel>
+              <TextBlock Text="Постоянное замедление или ускорение. 1,0× — как сейчас. Шаг 0,1; применяется при новом запуске игры." FontSize="12" TextWrapping="Wrap"
+                         Foreground="{StaticResource MutedTextBrush}" Margin="0,8,0,0" />
+              <TextBlock Text="Экспериментально: меню и таймеры тоже могут менять темп; возможна рассинхронизация звука/роликов. Нужна совместимая сборка игры с поддержкой изменения скорости." FontSize="12" TextWrapping="Wrap"
+                         Foreground="{StaticResource MutedTextBrush}" Margin="0,6,0,0" />
+            </StackPanel>
+          </Border>
           <Border Style="{StaticResource Panel}">
             <StackPanel>
-              <TextBlock Text="Graphics" Style="{StaticResource SectionTitle}" />
+              <TextBlock Text="Графика" Style="{StaticResource SectionTitle}" />
 
               <Grid>
                 <Grid.ColumnDefinitions>
@@ -89,7 +146,7 @@
                 </Grid.ColumnDefinitions>
 
                 <StackPanel>
-                  <TextBlock Text="OUTPUT RESOLUTION" Style="{StaticResource FieldLabel}" />
+                  <TextBlock Text="РАЗРЕШЕНИЕ ЭКРАНА" Style="{StaticResource FieldLabel}" />
                   <ComboBox x:Name="ResolutionCombo" SelectionChanged="SettingChanged">
                     <ComboBoxItem Tag="720p">1280 × 720</ComboBoxItem>
                     <ComboBoxItem Tag="1080p">1920 × 1080</ComboBoxItem>
@@ -99,11 +156,11 @@
                 </StackPanel>
 
                 <StackPanel Grid.Column="2">
-                  <TextBlock Text="INTERNAL RENDER SCALE" Style="{StaticResource FieldLabel}" />
+                  <TextBlock Text="ВНУТРЕННИЙ МАСШТАБ РЕНДЕРА" Style="{StaticResource FieldLabel}" />
                   <ComboBox x:Name="RenderScaleCombo" SelectionChanged="SettingChanged">
-                    <ComboBoxItem Tag="1">1× — Native 720p</ComboBoxItem>
-                    <ComboBoxItem Tag="2">2× — Native 1440p</ComboBoxItem>
-                    <ComboBoxItem Tag="3">3× — Native 4K</ComboBoxItem>
+                    <ComboBoxItem Tag="1">1× — Нативные 720p</ComboBoxItem>
+                    <ComboBoxItem Tag="2">2× — Нативные 1440p</ComboBoxItem>
+                    <ComboBoxItem Tag="3">3× — Нативные 4K</ComboBoxItem>
                     <ComboBoxItem Tag="4">4× — 5120 × 2880</ComboBoxItem>
                   </ComboBox>
                 </StackPanel>
@@ -116,41 +173,41 @@
                   <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
                 <StackPanel>
-                  <TextBlock Text="TEXTURE FILTERING" Style="{StaticResource FieldLabel}" />
+                  <TextBlock Text="ФИЛЬТРАЦИЯ ТЕКСТУР" Style="{StaticResource FieldLabel}" />
                   <ComboBox x:Name="AnisotropicCombo" SelectionChanged="SettingChanged">
-                    <ComboBoxItem Tag="-1">Game default</ComboBoxItem>
-                    <ComboBoxItem Tag="1">1× anisotropic</ComboBoxItem>
-                    <ComboBoxItem Tag="2">2× anisotropic</ComboBoxItem>
-                    <ComboBoxItem Tag="3">4× anisotropic</ComboBoxItem>
-                    <ComboBoxItem Tag="4">8× anisotropic</ComboBoxItem>
-                    <ComboBoxItem Tag="5">16× anisotropic</ComboBoxItem>
+                    <ComboBoxItem Tag="-1">Как в игре</ComboBoxItem>
+                    <ComboBoxItem Tag="1">1× анизотропная</ComboBoxItem>
+                    <ComboBoxItem Tag="2">2× анизотропная</ComboBoxItem>
+                    <ComboBoxItem Tag="3">4× анизотропная</ComboBoxItem>
+                    <ComboBoxItem Tag="4">8× анизотропная</ComboBoxItem>
+                    <ComboBoxItem Tag="5">16× анизотропная</ComboBoxItem>
                   </ComboBox>
                 </StackPanel>
                 <StackPanel Grid.Column="2">
-                  <TextBlock Text="DISPLAY MODE" Style="{StaticResource FieldLabel}" />
+                  <TextBlock Text="РЕЖИМ ЭКРАНА" Style="{StaticResource FieldLabel}" />
                   <ComboBox x:Name="DisplayModeCombo" SelectionChanged="SettingChanged">
-                    <ComboBoxItem Tag="windowed">Windowed</ComboBoxItem>
-                    <ComboBoxItem Tag="borderless">Borderless fullscreen</ComboBoxItem>
-                    <ComboBoxItem Tag="exclusive">Exclusive fullscreen</ComboBoxItem>
+                    <ComboBoxItem Tag="windowed">Оконный</ComboBoxItem>
+                    <ComboBoxItem Tag="borderless">Полноэкранный без рамки</ComboBoxItem>
+                    <ComboBoxItem Tag="exclusive">Эксклюзивный полноэкранный</ComboBoxItem>
                   </ComboBox>
                 </StackPanel>
               </Grid>
 
               <StackPanel Margin="0,18,0,0">
-                <TextBlock Text="ANTI-ALIASING (POST-PROCESS)" Style="{StaticResource FieldLabel}" />
+                <TextBlock Text="СГЛАЖИВАНИЕ (ПОСТОБРАБОТКА)" Style="{StaticResource FieldLabel}" />
                 <ComboBox x:Name="AntiAliasingCombo" SelectionChanged="SettingChanged">
-                  <ComboBoxItem Tag="none">Off — game-controlled AA</ComboBoxItem>
+                  <ComboBoxItem Tag="none">Выкл. — сглаживание игры</ComboBoxItem>
                   <ComboBoxItem Tag="fxaa">FXAA</ComboBoxItem>
-                  <ComboBoxItem Tag="fxaa_extreme">FXAA Extreme</ComboBoxItem>
+                  <ComboBoxItem Tag="fxaa_extreme">FXAA Экстремальное</ComboBoxItem>
                 </ComboBox>
-                <TextBlock Text="Optional edge smoothing. Higher internal scales also provide supersampling."
+                <TextBlock Text="Дополнительное сглаживание краёв. Более высокий внутренний масштаб также даёт суперсэмплинг."
                            FontSize="12" Foreground="{StaticResource MutedTextBrush}" Margin="0,6,0,0" TextWrapping="Wrap" />
               </StackPanel>
 
               <StackPanel Margin="0,18,0,0">
-                <TextBlock Text="FPS LIMIT" Style="{StaticResource FieldLabel}" />
+                <TextBlock Text="ОГРАНИЧЕНИЕ FPS" Style="{StaticResource FieldLabel}" />
                 <ComboBox x:Name="FrameLimitCombo" SelectionChanged="SettingChanged" />
-                <TextBlock Text="Requires the matching runtime. VSync may impose a lower limit; gameplay timing above 60 FPS is not fully verified."
+                <TextBlock Text="Требует совместимой среды выполнения. VSync может ограничить FPS ниже выбранного значения; работа игровой логики выше 60 FPS проверена не полностью."
                            FontSize="12" Foreground="{StaticResource MutedTextBrush}" Margin="0,6,0,0" TextWrapping="Wrap" />
               </StackPanel>
 
@@ -161,8 +218,8 @@
                     <ColumnDefinition Width="Auto" />
                   </Grid.ColumnDefinitions>
                   <StackPanel>
-                    <TextBlock Text="Vertical synchronization" FontWeight="SemiBold" />
-                    <TextBlock Text="Synchronizes display pacing; may limit FPS below the selected cap."
+                    <TextBlock Text="Вертикальная синхронизация" FontWeight="SemiBold" />
+                    <TextBlock Text="Синхронизирует вывод кадров; может ограничивать FPS ниже выбранного лимита."
                                FontSize="12" Foreground="{StaticResource MutedTextBrush}" Margin="0,2,0,0" />
                   </StackPanel>
                   <CheckBox x:Name="VsyncCheck" Grid.Column="1" IsChecked="True"
@@ -174,37 +231,37 @@
 
           <Border Style="{StaticResource Panel}" Margin="0,18,0,0">
             <StackPanel>
-              <TextBlock Text="Quick presets" Style="{StaticResource SectionTitle}" />
+              <TextBlock Text="Быстрые профили" Style="{StaticResource SectionTitle}" />
               <WrapPanel>
-                <Button Content="Original" Tag="original" Click="PresetClicked" Style="{StaticResource PresetButton}" />
-                <Button Content="Balanced" Tag="balanced" Click="PresetClicked" Style="{StaticResource PresetButton}" />
-                <Button Content="Enhanced" Tag="enhanced" Click="PresetClicked" Style="{StaticResource PresetButton}" />
-                <Button Content="Ultra" Tag="ultra" Click="PresetClicked" Style="{StaticResource PresetButton}" />
+                <Button Content="Оригинал" Tag="original" Click="PresetClicked" Style="{StaticResource PresetButton}" />
+                <Button Content="Сбалансированный" Tag="balanced" Click="PresetClicked" Style="{StaticResource PresetButton}" />
+                <Button Content="Улучшенный" Tag="enhanced" Click="PresetClicked" Style="{StaticResource PresetButton}" />
+                <Button Content="Ультра" Tag="ultra" Click="PresetClicked" Style="{StaticResource PresetButton}" />
               </WrapPanel>
-              <TextBlock x:Name="PresetDescription" Text="Choose a preset or tune every option above."
+              <TextBlock x:Name="PresetDescription" Text="Выберите профиль или настройте параметры вручную."
                          FontSize="12" Foreground="{StaticResource MutedTextBrush}" Margin="0,14,0,0"
                          TextWrapping="Wrap" />
             </StackPanel>
           </Border>
         </StackPanel>
 
-        <StackPanel Grid.Column="2">
+        <StackPanel Grid.Row="1" Grid.Column="2">
           <Border Style="{StaticResource Panel}">
             <StackPanel>
-              <TextBlock Text="Game location" Style="{StaticResource SectionTitle}" />
-              <TextBlock Text="ORIGINAL GAME FILES" Style="{StaticResource FieldLabel}" />
+              <TextBlock Text="Расположение игры" Style="{StaticResource SectionTitle}" />
+              <TextBlock Text="ОРИГИНАЛЬНЫЕ ФАЙЛЫ ИГРЫ" Style="{StaticResource FieldLabel}" />
               <Border Background="#99101819" BorderBrush="#445E706A" BorderThickness="1"
                       CornerRadius="7" Padding="10,8">
-                <TextBlock x:Name="GamePathText" Text="Not selected" FontSize="12"
+                <TextBlock x:Name="GamePathText" Text="Не выбрано" FontSize="12"
                            Foreground="#FFD0D8D2" TextWrapping="Wrap" />
               </Border>
               <!-- Hidden (the launcher defaults to its own folder and the user
                    can still edit the saved path in launcher-game-path.txt).
                    The BrowseClicked code is kept in case it is re-enabled. -->
-              <Button Content="Choose game folder…" Click="BrowseClicked"
+              <Button Content="Выбрать папку игры…" Click="BrowseClicked"
                       Style="{StaticResource SecondaryButton}" Margin="0,12,0,0"
                       Visibility="Collapsed" />
-              <Button x:Name="ExtractButton" Content="Extract from ISO" Click="ExtractClicked"
+              <Button x:Name="ExtractButton" Content="Извлечь из ISO" Click="ExtractClicked"
                       Style="{StaticResource SecondaryButton}" Margin="0,12,0,0" />
               <TextBlock x:Name="ExtractionStatusText" FontSize="12"
                          Foreground="{StaticResource MutedTextBrush}" Margin="0,10,0,0"
@@ -214,13 +271,13 @@
 
           <Border Style="{StaticResource Panel}" Margin="0,18,0,0">
             <StackPanel>
-              <TextBlock Text="Effective quality" Style="{StaticResource SectionTitle}" />
-              <TextBlock x:Name="InternalResolutionText" Text="Internal: 1280 × 720"
+              <TextBlock Text="Фактическое качество" Style="{StaticResource SectionTitle}" />
+              <TextBlock x:Name="InternalResolutionText" Text="Внутреннее: 1280 × 720"
                          FontSize="16" FontWeight="SemiBold" />
-              <TextBlock x:Name="OutputResolutionText" Text="Output: 1280 × 720"
+              <TextBlock x:Name="OutputResolutionText" Text="На экране: 1280 × 720"
                          FontSize="13" Foreground="{StaticResource MutedTextBrush}" Margin="0,5,0,0" />
               <Separator Margin="0,14" Background="#445E706A" />
-              <TextBlock Text="Higher internal scales improve geometry edges and render targets. They use substantially more GPU memory."
+              <TextBlock Text="Повышение внутреннего масштаба улучшает края геометрии и качество рендера, но заметно увеличивает расход видеопамяти."
                          FontSize="12" Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap" />
             </StackPanel>
           </Border>
@@ -242,16 +299,16 @@
           <StackPanel Grid.Column="0">
             <Border Style="{StaticResource Panel}">
               <StackPanel>
-                <TextBlock Text="Keybinds" Style="{StaticResource SectionTitle}" />
-                <TextBlock Text="HOST KEY  →  GUEST INPUT" Style="{StaticResource FieldLabel}" />
+                <TextBlock Text="Назначение клавиш" Style="{StaticResource SectionTitle}" />
+                <TextBlock Text="КЛАВИША ПК  →  КНОПКА XBOX" Style="{StaticResource FieldLabel}" />
                 <StackPanel x:Name="KeybindList" />
                 <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
-                  <Button Content="+ Add binding" Click="AddKeybindClicked"
+                  <Button Content="+ Добавить" Click="AddKeybindClicked"
                           Style="{StaticResource SecondaryButton}" MinWidth="120" />
-                  <Button Content="Reset to defaults" Click="ResetKeybindsClicked"
+                  <Button Content="Сбросить" Click="ResetKeybindsClicked"
                           Style="{StaticResource SecondaryButton}" MinWidth="150" Margin="8,0,0,0" />
                 </StackPanel>
-                <TextBlock Text="Click a host-key box, then press the key or mouse button you want to bind (Esc cancels). Changes are saved to fable2_config.toml and take effect the next time the game is launched."
+                <TextBlock Text="Нажмите поле клавиши ПК, затем нажмите нужную клавишу или кнопку мыши (Esc — отмена). Изменения сохраняются в fable2_config.toml и применяются при следующем запуске игры."
                            FontSize="12" Foreground="{StaticResource MutedTextBrush}" Margin="0,12,0,0"
                            TextWrapping="Wrap" />
               </StackPanel>
@@ -259,9 +316,9 @@
 
             <Border Style="{StaticResource Panel}" Margin="0,18,0,0">
               <StackPanel>
-                <TextBlock Text="Mouse" Style="{StaticResource SectionTitle}" />
-                <TextBlock Text="Mouse look (camera)" FontWeight="SemiBold" />
-                <TextBlock Text="Map mouse movement to the guest right stick. Disable to keep the cursor free."
+                <TextBlock Text="Мышь" Style="{StaticResource SectionTitle}" />
+                <TextBlock Text="Управление камерой мышью" FontWeight="SemiBold" />
+                <TextBlock Text="Преобразует движение мыши в правый стик Xbox-геймпада. Отключите, чтобы курсор оставался свободным."
                            FontSize="12" Foreground="{StaticResource MutedTextBrush}" Margin="0,3,0,0"
                            TextWrapping="Wrap" />
                 <CheckBox x:Name="MouseLookCheck" IsChecked="True" Margin="0,10,0,0"
@@ -273,7 +330,7 @@
                     <ColumnDefinition Width="Auto" />
                   </Grid.ColumnDefinitions>
                   <StackPanel>
-                    <TextBlock Text="MOUSE SENSITIVITY" Style="{StaticResource FieldLabel}" />
+                    <TextBlock Text="ЧУВСТВИТЕЛЬНОСТЬ МЫШИ" Style="{StaticResource FieldLabel}" />
                     <Slider x:Name="MouseSensitivitySlider" Minimum="1" Maximum="4096" Value="256"
                             SmallChange="1" LargeChange="64"
                             ValueChanged="MouseSensitivitySliderChanged" />
@@ -290,8 +347,8 @@
           <StackPanel Grid.Column="2">
             <Border Style="{StaticResource Panel}">
               <StackPanel>
-                <TextBlock Text="Patches" Style="{StaticResource SectionTitle}" />
-                <TextBlock Text="Recomp-level (mid-asm hook) patches. They take effect the next time the game is launched."
+                <TextBlock Text="Патчи" Style="{StaticResource SectionTitle}" />
+                <TextBlock Text="Патчи уровня рекомпиляции (перехваты промежуточного ассемблерного кода). Применяются при следующем запуске игры."
                            FontSize="12" Foreground="{StaticResource MutedTextBrush}" Margin="0,0,0,14"
                            TextWrapping="Wrap" />
                 <StackPanel x:Name="PatchList" />
@@ -300,8 +357,8 @@
 
             <Border Style="{StaticResource Panel}" Margin="0,18,0,0">
               <StackPanel>
-                <TextBlock Text="Performance" Style="{StaticResource SectionTitle}" />
-                <TextBlock Text="Hot-function yield batching. 1 = original (yield every call); larger = fewer context switches; 0 = never yield."
+                <TextBlock Text="Производительность" Style="{StaticResource SectionTitle}" />
+                <TextBlock Text="Пакетная обработка уступки выполнения в часто вызываемых функциях. 1 = оригинальное поведение; больше = меньше переключений контекста; 0 = никогда не уступать выполнение."
                            FontSize="12" Foreground="{StaticResource MutedTextBrush}" Margin="0,0,0,10"
                            TextWrapping="Wrap" />
                 <Grid>
@@ -311,7 +368,7 @@
                     <ColumnDefinition Width="Auto" />
                   </Grid.ColumnDefinitions>
                   <StackPanel>
-                    <TextBlock Text="HOTFUNC YIELD EVERY" Style="{StaticResource FieldLabel}" />
+                    <TextBlock Text="HOTFUNC: УСТУПАТЬ КАЖДЫЕ" Style="{StaticResource FieldLabel}" />
                     <Slider x:Name="HotFuncYieldSlider" Minimum="0" Maximum="16" Value="1"
                             SmallChange="1" LargeChange="1" IsSnapToTickEnabled="True" TickFrequency="1"
                             ValueChanged="HotFuncYieldSliderChanged" />
@@ -336,11 +393,17 @@
             <ColumnDefinition Width="12" />
             <ColumnDefinition Width="Auto" />
           </Grid.ColumnDefinitions>
-          <TextBlock x:Name="StatusText" Text="Select the original game folder containing default.xex and data."
-                     Foreground="{StaticResource MutedTextBrush}" VerticalAlignment="Center" TextWrapping="Wrap" />
-          <Button Grid.Column="1" Content="Save settings" Click="SaveClicked"
+          <StackPanel VerticalAlignment="Center" Margin="0,0,12,0">
+            <TextBlock x:Name="StatusText" Text="Выберите папку оригинальной игры, содержащую default.xex и data."
+                       Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap" />
+            <CheckBox x:Name="DiagnosticCheck" Margin="0,8,0,0" IsChecked="False">
+              <TextBlock Text="Диагностический запуск: оставить лаунчер открытым и сохранить локальный отчёт (логи и настройки; без сохранений игры и без отправки файлов)."
+                         TextWrapping="Wrap" FontSize="11" />
+            </CheckBox>
+          </StackPanel>
+          <Button Grid.Column="1" Content="Сохранить настройки" Click="SaveClicked"
                   Style="{StaticResource SecondaryButton}" MinWidth="125" />
-          <Button Grid.Column="3" x:Name="LaunchButton" Content="Play Fable II" Click="LaunchClicked"
+          <Button Grid.Column="3" x:Name="LaunchButton" Content="Играть в Fable II" Click="LaunchClicked"
                   Style="{StaticResource PrimaryButton}" MinWidth="175" />
         </Grid>
         <Grid x:Name="AdvancedFooter" Visibility="Collapsed">
@@ -352,10 +415,10 @@
           </Grid.ColumnDefinitions>
           <TextBlock x:Name="AdvancedStatusText" Text=""
                      Foreground="{StaticResource MutedTextBrush}" VerticalAlignment="Center" TextWrapping="Wrap" />
-          <Button Grid.Column="1" Content="Save advanced settings" Click="SaveAdvancedClicked"
-                  Style="{StaticResource SecondaryButton}" MinWidth="175" />
-          <Button Grid.Column="3" Content="Back to launcher" Click="BackClicked"
-                  Style="{StaticResource PrimaryButton}" MinWidth="155" />
+          <Button Grid.Column="1" Content="Сохранить расширенные настройки" Click="SaveAdvancedClicked"
+                  Style="{StaticResource SecondaryButton}" MinWidth="230" />
+          <Button Grid.Column="3" Content="Вернуться в лаунчер" Click="BackClicked"
+                  Style="{StaticResource PrimaryButton}" MinWidth="175" />
         </Grid>
       </Grid>
     </Border>
@@ -374,13 +437,13 @@
         </Grid.RowDefinitions>
 
         <StackPanel Grid.Row="0" HorizontalAlignment="Center">
-          <TextBlock Text="Extracting from ISO" FontFamily="Georgia" FontSize="30" FontWeight="Bold"
+          <TextBlock Text="Извлечение из ISO" FontFamily="Georgia" FontSize="30" FontWeight="Bold"
                      Foreground="#FFFFD888" HorizontalAlignment="Center" />
-          <TextBlock x:Name="ExtractionPhaseText" Text="Starting…" FontSize="14"
+          <TextBlock x:Name="ExtractionPhaseText" Text="Запуск…" FontSize="14"
                      Foreground="#FFC69A46" Margin="0,8,0,0" HorizontalAlignment="Center" />
         </StackPanel>
 
-        <Button Grid.Row="0" x:Name="StopButton" Content="Stop" Click="StopClicked"
+        <Button Grid.Row="0" x:Name="StopButton" Content="Остановить" Click="StopClicked"
                 Style="{StaticResource SecondaryButton}" HorizontalAlignment="Right"
                 VerticalAlignment="Top" MinWidth="110" Foreground="#FFD98B8B" />
 
@@ -407,11 +470,11 @@
                          TextWrapping="Wrap" HorizontalAlignment="Center" />
               <!-- Large, easy-to-reach way to back out (besides the small Stop
                    button in the top corner). -->
-              <Button x:Name="CancelButton" Content="Cancel" Click="CancelClicked"
+              <Button x:Name="CancelButton" Content="Отмена" Click="CancelClicked"
                       Style="{StaticResource SecondaryButton}" Margin="0,16,0,0"
                       MinWidth="260" HorizontalAlignment="Center" Padding="24,15"
                       FontSize="17" />
-              <Button x:Name="ExtractAnywaysButton" Content="Extract Anyways"
+              <Button x:Name="ExtractAnywaysButton" Content="Всё равно извлечь"
                       Click="ExtractAnywaysClicked" Style="{StaticResource SecondaryButton}"
                       Margin="0,10,0,0" MinWidth="150" HorizontalAlignment="Center"
                       Foreground="#FFE06666" Background="#553A1414" BorderBrush="#FF9E4A4A"
@@ -422,7 +485,7 @@
 
         <TextBlock x:Name="ExtractionFileText" Grid.Row="2" Margin="0,18,0,0" FontSize="14"
                    Foreground="#FFD0D8D2" HorizontalAlignment="Center"
-                   TextTrimming="CharacterEllipsis" Text="Waiting…" />
+                   TextTrimming="CharacterEllipsis" Text="Ожидание…" />
 
         <Border Grid.Row="3" Margin="0,18,0,0" Background="#220E1A17" BorderBrush="#335E706A"
                 BorderThickness="1" CornerRadius="10" Padding="16,12">

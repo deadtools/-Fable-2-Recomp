@@ -35,6 +35,8 @@ inline constexpr std::string_view kDefaultKeyboardGamepadMap =
 struct Values {
   // [general]
   int32_t config_version = 1;
+  // [gameplay] Persistent startup multiplier; 0.1..2.0 in 0.1 steps.
+  double game_speed = 1.0;
   // [input]
   std::string keyboard_gamepad_map{std::string{kDefaultKeyboardGamepadMap}};
   // Keep in sync with the cvar defaults in main.cpp (mouse_look,

@@ -10,8 +10,17 @@
     <ProjectReference Include="..\..\tools\x360extract\lib\X360Extract.Core.csproj" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="..\..\launcher\Fable2.Launcher\TomlTextDocument.cs" Link="TomlTextDocument.cs" />
+    <Compile Include="..\..\launcher\Fable2.Launcher\TextureModeSettings.cs" Link="TextureModeSettings.cs" />
+    <Compile Include="..\..\launcher\Fable2.Launcher\LaunchDiagnostics.cs" Link="LaunchDiagnostics.cs" />
+    <Compile Include="..\..\launcher\Fable2.Launcher\DualShockPromptPatcher.cs" Link="DualShockPromptPatcher.cs" />
+    <Compile Include="..\..\launcher\Fable2.Launcher\DualShockAtlasArtwork.cs" Link="DualShockAtlasArtwork.cs" />
+    <Compile Include="..\..\launcher\Fable2.Launcher\DualShockMenuBadgeArtwork.cs" Link="DualShockMenuBadgeArtwork.cs" />
+    <Compile Include="..\..\launcher\Fable2.Launcher\DualShockMenuBadgePatcher.cs" Link="DualShockMenuBadgePatcher.cs" />
+    <Compile Include="..\..\launcher\Fable2.Launcher\DualShockPromptArtwork.cs" Link="DualShockPromptArtwork.cs" />
     <Compile Include="..\..\launcher\Fable2.Launcher\GraphicsSettings.cs" Link="GraphicsSettings.cs" />
     <Compile Include="..\..\launcher\Fable2.Launcher\LauncherConfigFile.cs" Link="LauncherConfigFile.cs" />
+    <Compile Include="..\..\launcher\Fable2.Launcher\GameSpeedSettings.cs" Link="GameSpeedSettings.cs" />
     <Compile Include="..\..\launcher\Fable2.Launcher\Fable2ConfigFile.cs" Link="Fable2ConfigFile.cs" />
     <Compile Include="..\..\launcher\Fable2.Launcher\GameCompatibility.cs" Link="GameCompatibility.cs" />
     <Compile Include="..\..\launcher\Fable2.Launcher\GameLaunchPlan.cs" Link="GameLaunchPlan.cs" />
