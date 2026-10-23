@@ -6,13 +6,13 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AssemblyName>Fable2Launcher</AssemblyName>
-    <Version>1.6.0</Version>
-    <AssemblyVersion>1.6.0.0</AssemblyVersion>
-    <InformationalVersion>1.6.0</InformationalVersion>
-    <FileVersion>1.6.0.0</FileVersion>
-    <AssemblyTitle>Fable II Recompiled — Launcher 1.6</AssemblyTitle>
+    <Version>1.6.1</Version>
+    <AssemblyVersion>1.6.1.0</AssemblyVersion>
+    <InformationalVersion>1.6.1</InformationalVersion>
+    <FileVersion>1.6.1.0</FileVersion>
+    <AssemblyTitle>Fable II Recompiled — Launcher 1.6.1</AssemblyTitle>
     <Product>Fable II Recompiled Launcher</Product>
-    <Description>Версия 1.6: исправление текстур героя и собаки, переключение Xbox/PlayStation, регулировка скорости игры. Автор доработок: deadtools (https://github.com/deadtools).</Description>
+    <Description>Version 1.6.1: hero/dog texture fixes, Xbox/PlayStation prompts, adjustable game speed and EN/RU launcher language switch. Modifications by deadtools (https://github.com/deadtools).</Description>
     <ApplicationIcon>..\..\assets\app-icon.ico</ApplicationIcon>
     <RootNamespace>Fable2Launcher</RootNamespace>
   </PropertyGroup>

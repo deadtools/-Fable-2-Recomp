@@ -10,6 +10,7 @@ Directory.CreateDirectory(testDirectory);
 try
 {
     GameSpeedV18Tests.Run(testDirectory);
+    LauncherLanguageTests.Run(testDirectory);
     string configPath = Path.Combine(testDirectory, "fable_2.toml");
     const string original = "# existing config\nresolution = \"720p\" # keep this note\ncustom_mod = true\n";
     File.WriteAllText(configPath, original);

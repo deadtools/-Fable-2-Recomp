@@ -19,6 +19,10 @@ public partial class MainWindow : Window
     private string? _executableDirectory;
     private bool _loading = true;
     private bool _diagnosticRunning;
+    private bool _languageInitialized;
+    private bool _languageUiLoaded;
+    private bool _localizing;
+    private bool _localizationDisabled;
     private ComboBox? _textureModeCombo;
     private TextBlock? _textureModeHelp;
     private TextBlock? _textureInputSummary;
@@ -56,14 +60,65 @@ public partial class MainWindow : Window
         Closing += (_, e) =>
         {
             if (_diagnosticRunning && MessageBox.Show(this,
-                "Игра продолжит работать, но диагностический отчёт останется неполным. Закрыть лаунчер?",
-                "Диагностический сеанс", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
+                L("Игра продолжит работать, но диагностический отчёт останется неполным. Закрыть лаунчер?"),
+                L("Диагностический сеанс"), MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
                 e.Cancel = true;
         };
         SetDefaults();
         DetectGameDirectory();
         _loading = false;
+        LauncherLanguage.SetCurrent(LauncherLanguage.Load(LauncherLanguage.StateFilePath));
+        SelectByTag(LanguageCombo, LauncherLanguage.Current);
+        _languageInitialized = true;
         RefreshSummary();
+        // Do not walk/mutate WPF controls while InitializeComponent and the
+        // constructor are building the visual tree. Localize only after Loaded.
+        Loaded += (_, _) =>
+        {
+            _languageUiLoaded = true;
+            ApplyLocalizedTexts();
+        };
+    }
+
+    private static string L(string original) => LauncherLanguage.T(original);
+
+    private void ApplyLocalizedTexts()
+    {
+        if (!_languageInitialized || !_languageUiLoaded || _localizing || _localizationDisabled) return;
+        _localizing = true;
+        try
+        {
+            LauncherLocalization.Apply(this);
+            // Format dynamic values after localizing static labels.
+            UpdateGameSpeedLabel();
+        }
+        catch (Exception error)
+        {
+            // UI translation must never make the game launcher unusable.
+            _localizationDisabled = true;
+            LauncherStartupDiagnostics.Report("EN/RU interface localization", error);
+        }
+        finally
+        {
+            _localizing = false;
+        }
+    }
+
+    private void LanguageSelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!_languageInitialized) return;
+        string language = SelectedTag(LanguageCombo) ?? LauncherLanguage.English;
+        LauncherLanguage.SetCurrent(language);
+        ApplyLocalizedTexts();
+        try { LauncherLanguage.Save(LauncherLanguage.StateFilePath, language); }
+        catch (Exception exception)
+        {
+            MessageBox.Show(this,
+                (language == LauncherLanguage.Russian
+                    ? "Не удалось сохранить язык интерфейса: "
+                    : "Could not save interface language: ") + exception.Message,
+                language == LauncherLanguage.Russian ? "Настройки языка" : "Language settings", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
     }
 
     private void DeadtoolsLinkRequested(object sender, RequestNavigateEventArgs e)
@@ -78,8 +133,8 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            MessageBox.Show(this, "Не удалось открыть GitHub: " + ex.Message,
-                "Ссылка на автора доработок", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show(this, L("Не удалось открыть GitHub: ") + ex.Message,
+                L("Ссылка на автора доработок"), MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
 
@@ -138,6 +193,7 @@ public partial class MainWindow : Window
             StatusText.Text = exception.Message;
             ConfigStateText.Text = "Не готово к запуску";
         }
+        ApplyLocalizedTexts();
     }
 
     private void LoadConfiguration()
@@ -177,6 +233,7 @@ public partial class MainWindow : Window
         finally { _loading = false; }
         RefreshSummary();
         ConfigStateText.Text = "Настройки загружены";
+        ApplyLocalizedTexts();
     }
 
     private string GetValue(string key, string fallback) =>
@@ -217,8 +274,8 @@ public partial class MainWindow : Window
     {
         if (_gameDirectory is null || _executableDirectory is null || !File.Exists(Path.Combine(_executableDirectory, "fable_2.exe")))
         {
-            MessageBox.Show(this, "Сначала выберите папку, содержащую fable_2.exe.",
-                "Игра не найдена", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show(this, L("Сначала выберите папку, содержащую fable_2.exe."),
+                L("Игра не найдена"), MessageBoxButton.OK, MessageBoxImage.Warning);
             return false;
         }
 
@@ -235,13 +292,14 @@ public partial class MainWindow : Window
         }
         catch (Exception exception)
         {
-            MessageBox.Show(this, exception.Message, "Не удалось сохранить настройки",
+            MessageBox.Show(this, L(exception.Message), L("Не удалось сохранить настройки"),
                 MessageBoxButton.OK, MessageBoxImage.Error);
             return false;
         }
 
         StatusText.Text = $"Сохранено: {Path.GetFileName(path)}.";
         ConfigStateText.Text = "Настройки сохранены";
+        ApplyLocalizedTexts();
         return true;
     }
 
@@ -256,11 +314,11 @@ public partial class MainWindow : Window
                 GameCompatibilityInspector.Inspect(_gameDirectory));
             if (SelectedGameSpeed() != GameSpeedSettings.Default &&
                 !GameSpeedSettings.SupportsRuntime(plan.Executable))
-                throw new InvalidOperationException("Для скорости отличной от 1,0× нужен новый fable_2.exe.\n\nЗакройте игру и запустите BUILD-GAME-SPEED-LOCAL.cmd из папки исходников. Одной пересборки лаунчера недостаточно.");
+                throw new InvalidOperationException(L("Для скорости отличной от 1,0× нужен новый fable_2.exe.\n\nЗакройте игру и запустите BUILD-GAME-SPEED-LOCAL.cmd из папки исходников. Одной пересборки лаунчера недостаточно."));
             var saved = Fable2ConfigFile.Read(AdvancedConfigPath());
             if (TextureModeSettings.Get(saved) == HeroDogTextureMode.DiagnosticOff &&
-                MessageBox.Show(this, "Оба исправления текстур героя и собаки отключены. Ожидаются чёрные текстуры. Продолжить диагностический тест?",
-                    "Режим текстур", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+                MessageBox.Show(this, L("Оба исправления текстур героя и собаки отключены. Ожидаются чёрные текстуры. Продолжить диагностический тест?"),
+                    L("Режим текстур"), MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
             if (!SaveConfiguration()) return;
             var startInfo = new ProcessStartInfo
             {
@@ -275,17 +333,20 @@ public partial class MainWindow : Window
             bool useDualShock = LauncherState.LoadDualShockEnabled();
             string dualShockStatus = DualShockPromptPatcher.Apply(_gameDirectory, useDualShock);
             StatusText.Text = dualShockStatus;
+            ApplyLocalizedTexts();
             bool diagnostic = DiagnosticCheck.IsChecked == true;
             if (diagnostic)
             {
                 _diagnosticRunning = true;
                 MainContent.IsEnabled = MainFooter.IsEnabled = AdvancedOptionsButton.IsEnabled = false;
                 StatusText.Text = "Подготовка локального диагностического отчёта…";
+                ApplyLocalizedTexts();
                 session = await Task.Run(() => LaunchDiagnostics.Begin(plan, startInfo));
             }
-            using var process = Process.Start(startInfo) ?? throw new InvalidOperationException("Не удалось запустить процесс игры.");
+            using var process = Process.Start(startInfo) ?? throw new InvalidOperationException(L("Не удалось запустить процесс игры."));
             StatusText.Text = "Fable II запущена.";
             ConfigStateText.Text = "Игра запущена";
+            ApplyLocalizedTexts();
             if (!diagnostic) { Close(); return; }
             session!.MarkStarted(process.Id);
             WindowState = WindowState.Minimized;
@@ -297,8 +358,9 @@ public partial class MainWindow : Window
             Activate();
             StatusText.Text = $"Игра завершилась с кодом {LaunchDiagnostics.FormatExitCode(exitCode)}. Отчёт: {session.DirectoryPath}";
             ConfigStateText.Text = "Диагностический отчёт сохранён";
-            MessageBox.Show(this, $"Код завершения процесса: {LaunchDiagnostics.FormatExitCode(exitCode)}\n\nЛокальный отчёт сохранён:\n{session.DirectoryPath}\n\nНикакие файлы не отправлялись. Перед передачей отчёта проверьте пути и настройки. Один код завершения не определяет причину сбоя.",
-                "Диагностический сеанс завершён", MessageBoxButton.OK, MessageBoxImage.Information);
+            ApplyLocalizedTexts();
+            MessageBox.Show(this, L($"Код завершения процесса: {LaunchDiagnostics.FormatExitCode(exitCode)}\n\nЛокальный отчёт сохранён:\n{session.DirectoryPath}\n\nНикакие файлы не отправлялись. Перед передачей отчёта проверьте пути и настройки. Один код завершения не определяет причину сбоя."),
+                L("Диагностический сеанс завершён"), MessageBoxButton.OK, MessageBoxImage.Information);
         }
         catch (Exception exception)
         {
@@ -308,7 +370,7 @@ public partial class MainWindow : Window
                 catch { /* Keep the original error. The prepared report remains on disk. */ }
             }
             WindowState = WindowState.Normal;
-            MessageBox.Show(this, exception.Message, "Ошибка запуска или диагностики",
+            MessageBox.Show(this, L(exception.Message), L("Ошибка запуска или диагностики"),
                 MessageBoxButton.OK, MessageBoxImage.Error);
         }
         finally
@@ -338,14 +400,19 @@ public partial class MainWindow : Window
         {
             ConfigStateText.Text = "Есть несохранённые изменения";
         }
+        ApplyLocalizedTexts();
     }
 
     private double SelectedGameSpeed() => GameSpeedSettings.FromStep(GameSpeedSlider.Value);
 
     private void UpdateGameSpeedLabel()
     {
+        bool russian = LauncherLanguage.Current == LauncherLanguage.Russian;
         if (GameSpeedValueText is not null && GameSpeedSlider is not null)
-            GameSpeedValueText.Text = SelectedGameSpeed().ToString("0.0", CultureInfo.GetCultureInfo("ru-RU")) + "×";
+            GameSpeedValueText.Text = SelectedGameSpeed().ToString("0.0",
+                CultureInfo.GetCultureInfo(russian ? "ru-RU" : "en-US")) + "×";
+        if (GameSpeedMinText is not null) GameSpeedMinText.Text = russian ? "0,1×" : "0.1×";
+        if (GameSpeedMaxText is not null) GameSpeedMaxText.Text = russian ? "2,0×" : "2.0×";
     }
 
     private void GameSpeedChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
@@ -400,21 +467,22 @@ public partial class MainWindow : Window
         SelectByTag(AntiAliasingCombo, "none");
         VsyncCheck.IsChecked = true;
         RefreshSummary(markDirty: true);
+        ApplyLocalizedTexts();
     }
 
     private void BrowseClicked(object sender, RoutedEventArgs e)
     {
         var dialog = new OpenFolderDialog
         {
-            Title = "Выберите папку оригинальной игры (default.xex и data)",
+            Title = L("Выберите папку оригинальной игры (default.xex и data)"),
             Multiselect = false
         };
         if (dialog.ShowDialog(this) == true)
         {
             if (!File.Exists(Path.Combine(dialog.FolderName, "default.xex")))
             {
-                MessageBox.Show(this, "В этой папке нет файла default.xex.",
-                    "Игра не найдена", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(this, L("В этой папке нет файла default.xex."),
+                    L("Игра не найдена"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
             SetGameDirectory(dialog.FolderName);
@@ -438,7 +506,7 @@ public partial class MainWindow : Window
 
         var isoDialog = new OpenFileDialog
         {
-            Title = "Выберите ISO-образ",
+            Title = L("Выберите ISO-образ"),
             Filter = "ISO (*.iso)|*.iso",
             CheckFileExists = true
         };
@@ -468,6 +536,7 @@ public partial class MainWindow : Window
         ExtractionFolderList.Children.Clear();
         _rootChecks.Clear();
         HashPrompt.Visibility = Visibility.Collapsed;
+        ApplyLocalizedTexts();
 
         Task.Run(async () =>
         {
@@ -564,6 +633,7 @@ public partial class MainWindow : Window
                     ExtractionOverlay.Visibility = Visibility.Collapsed;
                     ExtractionStatusText.Visibility = Visibility.Visible;
                     ExtractionStatusText.Text = "Извлечение остановлено.";
+                    ApplyLocalizedTexts();
                     return;
                 }
                 if (error is not null)
@@ -571,7 +641,8 @@ public partial class MainWindow : Window
                     ExtractionOverlay.Visibility = Visibility.Collapsed;
                     ExtractionStatusText.Visibility = Visibility.Visible;
                     ExtractionStatusText.Text = "Ошибка извлечения.";
-                    MessageBox.Show(this, error, "Не удалось извлечь ISO",
+                    ApplyLocalizedTexts();
+                    MessageBox.Show(this, L(error), L("Не удалось извлечь ISO"),
                         MessageBoxButton.OK, MessageBoxImage.Error);
                     return;
                 }
@@ -585,6 +656,7 @@ public partial class MainWindow : Window
                 // is staged) in the status line and configuration badge.
                 SetGameDirectory(outDir);
                 HideOverlayAfter(900);
+                ApplyLocalizedTexts();
             });
         });
     }
@@ -600,6 +672,7 @@ public partial class MainWindow : Window
         _stopRequested = true;
         StopButton.IsEnabled = false;
         ExtractionPhaseText.Text = "Остановка…";
+        ApplyLocalizedTexts();
     }
 
     // The large "Cancel" button on the "unrecognized XEX" prompt: declines the
@@ -618,6 +691,8 @@ public partial class MainWindow : Window
         StopButton.IsEnabled = false;
         HashPrompt.Visibility = Visibility.Collapsed;
         ExtractionPhaseText.Text = "Остановка…";
+        ApplyLocalizedTexts();
+        ApplyLocalizedTexts();
     }
 
     private void ExtractAnywaysClicked(object sender, RoutedEventArgs e)
@@ -626,6 +701,7 @@ public partial class MainWindow : Window
         _hashDecision.TrySetResult(true);
         HashPrompt.Visibility = Visibility.Collapsed;
         ExtractionPhaseText.Text = "Извлечение…";
+        ApplyLocalizedTexts();
     }
 
     // Show the "unrecognized XEX" prompt on the overlay (called on the UI
@@ -634,6 +710,7 @@ public partial class MainWindow : Window
     {
         HashPromptText.Text = message;
         ExtractionPhaseText.Text = "Неизвестный default.xex";
+        ApplyLocalizedTexts();
         StopButton.IsEnabled = true;   // the user can still abort
         HashPrompt.Visibility = Visibility.Visible;
     }
@@ -670,6 +747,7 @@ public partial class MainWindow : Window
             $"{DiscExtraction.FormatSize(0)} / {DiscExtraction.FormatSize(progress.TotalBytes)}";
         ExtractionPhaseText.Text = "Чтение диска…";
         ExtractionFileText.Text = "Чтение диска…";
+        ApplyLocalizedTexts();
     }
 
     private void PushExtractionUi(ExtractionProgress progress)
@@ -688,6 +766,7 @@ public partial class MainWindow : Window
             + $" / {DiscExtraction.FormatSize(progress.TotalBytes)}";
         ExtractionPhaseText.Text = progress.Phase;
         ExtractionFileText.Text = progress.CurrentFile ?? "…";
+        ApplyLocalizedTexts();
     }
 
     private void MarkRootDone(string name)
@@ -731,7 +810,7 @@ public partial class MainWindow : Window
         try { LoadAdvanced(); SetPage(true); }
         catch (Exception exception)
         {
-            MessageBox.Show(this, exception.Message, "Не удалось прочитать расширенные настройки",
+            MessageBox.Show(this, L(exception.Message), L("Не удалось прочитать расширенные настройки"),
                 MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
@@ -754,6 +833,7 @@ public partial class MainWindow : Window
         }
         finally { _loading = false; }
         AdvancedStatusText.Text = "Редактируется fable2_config.toml (изменения не сохранены)";
+        ApplyLocalizedTexts();
     }
 
     // Build one "press-to-capture host key -> guest input" row in the KeybindList.
@@ -857,6 +937,7 @@ public partial class MainWindow : Window
         var capture = (KeyCaptureField)field.Tag!;
         capture.Text.Text = "ожидание ввода…";
         capture.Text.Foreground = KeyFieldText;
+        ApplyLocalizedTexts();
     }
 
     private void SetKeyCaptureValue(Border field, string name)
@@ -870,13 +951,14 @@ public partial class MainWindow : Window
         _activeKeyField = null;
     }
 
-    private static void SetKeyCaptureIdle(Border field)
+    private void SetKeyCaptureIdle(Border field)
     {
         var capture = (KeyCaptureField)field.Tag!;
         capture.Text.Text = string.IsNullOrWhiteSpace(capture.Value) ? "нажмите клавишу…" : capture.Value;
         capture.Text.Foreground = KeyFieldText;
         field.Background = KeyIdleBackground;
         field.BorderBrush = KeyIdleBorder;
+        ApplyLocalizedTexts();
     }
 
     // Map a WPF Key to the host-key name rex::ui::ParseVirtualKey expects (see
@@ -980,13 +1062,19 @@ public partial class MainWindow : Window
             AddKeybindRow(entry.Key, entry.Button);
     }
 
-    private void AddKeybindClicked(object sender, RoutedEventArgs e) =>
+    private void AddKeybindClicked(object sender, RoutedEventArgs e)
+    {
         AddKeybindRow("", Fable2ConfigFile.ButtonNames[0]);
+        ApplyLocalizedTexts();
+    }
 
     // Restore the built-in default keyboard -> gamepad map (rebuilds the rows
     // from the C++ default). The user still has to press Save to persist it.
     private void ResetKeybindsClicked(object sender, RoutedEventArgs e)
-        => BuildKeybindRows(Fable2ConfigFile.ParseKeybinds(Fable2ConfigValues.DefaultKeyboardGamepadMap));
+    {
+        BuildKeybindRows(Fable2ConfigFile.ParseKeybinds(Fable2ConfigValues.DefaultKeyboardGamepadMap));
+        ApplyLocalizedTexts();
+    }
 
     private string CollectKeybinds()
     {
@@ -1252,7 +1340,7 @@ public partial class MainWindow : Window
     {
         if (_executableDirectory is null)
         {
-            MessageBox.Show(this, "Сначала выберите папку игры.", "Игра не найдена",
+            MessageBox.Show(this, L("Сначала выберите папку игры."), L("Игра не найдена"),
                 MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
@@ -1267,8 +1355,8 @@ public partial class MainWindow : Window
         CollectPatches();
         var mode = SelectedTextureMode();
         if (mode == HeroDogTextureMode.DiagnosticOff &&
-            MessageBox.Show(this, "Отключить оба исправления текстур? Герой и собака могут отображаться чёрными.",
-                "Только диагностический режим", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+            MessageBox.Show(this, L("Отключить оба исправления текстур? Герой и собака могут отображаться чёрными."),
+                L("Только диагностический режим"), MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
         TextureModeSettings.Apply(_advanced, mode);
 
         string path = AdvancedConfigPath();
@@ -1278,10 +1366,11 @@ public partial class MainWindow : Window
             LauncherState.SaveDualShockEnabled(_dualShockCheck?.IsChecked == true);
             AdvancedStatusText.Text = $"Сохранено: {Path.GetFileName(path)}. Перезапустите игру, чтобы применить режим.";
             UpdateTextureModeHelp();
+            ApplyLocalizedTexts();
         }
         catch (Exception exception)
         {
-            MessageBox.Show(this, exception.Message, "Не удалось сохранить расширенные настройки",
+            MessageBox.Show(this, L(exception.Message), L("Не удалось сохранить расширенные настройки"),
                 MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }

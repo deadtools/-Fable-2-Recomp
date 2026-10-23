@@ -8,10 +8,10 @@
 ## Что нового в этом форке / What's new
 
 **Главное:**
-- 🇷🇺 **Лаунчер полностью переведён на русский язык** — все окна, настройки, подсказки, расширенные параметры и сообщения об ошибках. / *The launcher is fully translated into Russian.*
+- 🌐 **Переключатель языка EN / RU** (с версии 1.6.1) — кнопка в правом верхнем углу лаунчера. Лаунчер полностью переведён на русский язык: главная страница, «Расширенные настройки», статусы, извлечение игры, настройки GPU и текстур, подсказки и сообщения об ошибках. Язык меняется сразу, без перезапуска, и запоминается (`%LOCALAPPDATA%\Fable2Launcher\launcher-language.txt`). По умолчанию — английский. Язык самой игры не меняется. / *EN/RU language switch (top-right); the launcher is fully translated into Russian.*
 - 🎮 **Переключение Xbox ↔ PlayStation (DualShock)** — галочка «Использовать геймпад DualShock» в разделе «Расширенные настройки» меняет все кнопки в игре на PlayStation-стиль: A→✕, B→○, X→□, Y→△, LB→L1, RB→R1, LT→L2, RT→R2. / *One-click Xbox ↔ PlayStation button prompt switch.*
 
-**Лаунчер 1.6.0 — подробно**
+**Лаунчер 1.6.x — подробно**
 - **Текстуры героя и собаки** — выбор режима: морфинг на GPU в реальном времени, совместимый Readback или диагностический (`TextureModeSettings`, `src/core/texture_mode_policy.h`). Добавлен локальный диагностический отчёт о запуске (`LaunchDiagnostics`, `tools/texture-diagnostics/`).
 - **Подсказки DualShock / PlayStation** — переключатель Xbox ↔ PlayStation: патчер экранных подсказок, иконок меню и HUD (`DualShock*.cs`, `tools/deploy-dualshock-menu.ps1`). Оригинальные файлы игры сохраняются в резервную копию и восстанавливаются при отключении. Подробнее: [DUALSHOCK_PROMPTS_RU.md](DUALSHOCK_PROMPTS_RU.md).
 - **Скорость игры 0,1–2,0×** (шаг 0,1, по умолчанию 1,0×) — точные дробные коэффициенты часов, корректное масштабирование ожиданий и таймеров (`src/core/fable2_game_speed.h`, `game_speed_*.h`, `tools/prepare_game_speed_sdk.py`). Для значений, отличных от 1,0×, нужна пересборка `fable_2.exe`. Подробнее: [docs/GAME_SPEED_V18.md](docs/GAME_SPEED_V18.md).
@@ -19,7 +19,10 @@
 ![DualShock menu badge](docs/screenshots/dualshock-menu-badge.png)
 
 **Сборка / Build**
-- `BUILD-LAUNCHER-LOCAL.cmd` — тесты и сборка только лаунчера (.NET 8 SDK), без пересборки игры.
+- `BUILD-LAUNCHER-LOCAL.cmd` — тесты и сборка только лаунчера (.NET 8 SDK), без пересборки игры. Готовый файл: `out\texture-diagnostics-launcher\Fable2Launcher.exe` — скопируйте его в папку с игрой вместо старого.
+- `RESTORE-LAUNCHER-BACKUP.cmd` — вернуть предыдущий `Fable2Launcher.exe` из резервной копии.
+- Если лаунчер не открывается, ошибка запуска записывается в `%LOCALAPPDATA%\Fable2Launcher\launcher-startup-error.log`.
+- Описание версий: [docs/releases](docs/releases).
 - Правки SDK для скорости игры вносятся автоматически скриптом `tools/prepare_game_speed_sdk.py` при сборке рантайма (`tools/build_runtime_sdk.cmd`); сабмодуль `thirdparty/rexglue-sdk` не изменён.
 - Пути в скриптах развёртывания по умолчанию указывают на `D:\Fable2\...` — поменяйте под себя.
 

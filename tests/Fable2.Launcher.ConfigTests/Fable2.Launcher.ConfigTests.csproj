@@ -19,6 +19,7 @@
     <Compile Include="..\..\launcher\Fable2.Launcher\DualShockMenuBadgePatcher.cs" Link="DualShockMenuBadgePatcher.cs" />
     <Compile Include="..\..\launcher\Fable2.Launcher\DualShockPromptArtwork.cs" Link="DualShockPromptArtwork.cs" />
     <Compile Include="..\..\launcher\Fable2.Launcher\GraphicsSettings.cs" Link="GraphicsSettings.cs" />
+    <Compile Include="..\..\launcher\Fable2.Launcher\LauncherLanguage.cs" Link="LauncherLanguage.cs" />
     <Compile Include="..\..\launcher\Fable2.Launcher\LauncherConfigFile.cs" Link="LauncherConfigFile.cs" />
     <Compile Include="..\..\launcher\Fable2.Launcher\GameSpeedSettings.cs" Link="GameSpeedSettings.cs" />
     <Compile Include="..\..\launcher\Fable2.Launcher\Fable2ConfigFile.cs" Link="Fable2ConfigFile.cs" />
@@ -28,5 +29,6 @@
     <Compile Include="..\..\launcher\Fable2.Launcher\Constants\GraphicsOptions.cs" Link="GraphicsOptions.cs" />
     <Compile Include="..\..\constants\GameVersions.cs" Link="GameVersions.cs" />
     <None Include="..\..\launcher\Fable2.Launcher\App.xaml" Link="TestData\App.xaml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\launcher\Fable2.Launcher\MainWindow.xaml" Link="TestData\MainWindow.xaml" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>
