@@ -24,6 +24,11 @@ public static class LauncherTextV2
             ["ИГРАТЬ"] = "PLAY",
             ["Укажите папку с оригинальными файлами Fable II GOTY"] = "Select the folder with the original Fable II GOTY files",
             ["ВЫБРАТЬ ПАПКУ"] = "SELECT FOLDER",
+            ["ВЫБРАТЬ ISO-ОБРАЗ"] = "SELECT ISO IMAGE",
+            ["Укажите папку с распакованной игрой или выберите ISO-образ диска Fable II GOTY"] =
+                "Select the folder with the extracted game or choose a Fable II GOTY disc image (ISO)",
+            ["Игра уже распакована (default.xex и data)"] = "The game is already extracted (default.xex and data)",
+            ["Игра ещё не распакована: файлы появятся в папке лаунчера"] = "Not extracted yet: files will be placed in the launcher folder",
             ["Свернуть"] = "Minimize",
             ["Закрыть"] = "Close",
 
