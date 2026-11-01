@@ -30,14 +30,14 @@ public static class TextureModeSettings
         {
             HeroDogTextureMode.GpuRealtime => "Морфинг на GPU в реальном времени",
             HeroDogTextureMode.CompatibilityReadback => "Совместимый Readback",
-            _ => "Исправления отключены (диагностика)"
+            _ => "Стабильный v22: GPU Morphing / Forced Readback отключены"
         };
         text.AppendLine($"Запрошенный режим: {modeLabel}");
         text.AppendLine($"realtime_texture_morphing={values.RealtimeTextureMorphing}, hero_dog_texture_readback={values.HeroDogTextureReadback}");
         if (values.RealtimeTextureMorphing && values.HeroDogTextureReadback)
             text.AppendLine("Оба старых флага включены. При сохранении останется только один; сейчас приоритет имеет GPU-режим.");
         if (Get(values) == HeroDogTextureMode.DiagnosticOff)
-            text.AppendLine("ВНИМАНИЕ: исправление текстур не выбрано; герой и собака могут отображаться чёрными.");
+            text.AppendLine("Стабильный профиль v22 исключает экспериментальные texture-пути; на отдельных сценах возможны старые артефакты героя/собаки.");
         var sdk = LauncherConfigFile.ReadValues(Path.Combine(directory, "fable_2.toml"));
         foreach (string key in new[] { "readback_resolve_force_addresses", "readback_resolve" })
         {

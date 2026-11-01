@@ -3,7 +3,10 @@
 A .NET 8 WPF settings launcher for verified GOTY USA/Europe and German GOTY
 dumps. It validates the original XEX and content markers, then checks the
 native build descriptor. Unknown revisions and known mixed retail/TU1 content
-are rejected; original game files are never modified.
+are rejected. Launching with PlayStation/keyboard prompts may replace verified
+GUI texture banks and the three PubGames SWFs in the extracted game data;
+originals are backed up alongside the files (e.g. *.xbox-prompts-backup).
+Never delete those backups. The launcher does not modify the source ISO or save games.
 
 ## Extracting from an ISO
 

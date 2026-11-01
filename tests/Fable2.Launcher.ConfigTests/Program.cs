@@ -1,5 +1,6 @@
 using Fable2Launcher;
 using Fable2Launcher.Constants;
+using System.IO;
 using System.Security.Cryptography;
 using System.Text;
 using System.Xml.Linq;
@@ -40,6 +41,50 @@ try
     Require(roundTrip["resolution"] == "\"1080p\"", "roundtrip resolution failed");
     Require(roundTrip["custom_mod"] == "true", "roundtrip unknown setting failed");
     Console.WriteLine("Launcher configuration roundtrip passed.");
+
+    // Regression: a damaged SDK TOML with leading NUL bytes must still be read,
+    // then normalized on the next launcher write without losing its settings.
+    string nulConfigPath = Path.Combine(testDirectory, "nul-config.toml");
+    byte[] nulPayload = Encoding.UTF8.GetBytes("resolution_scale = 2\nvsync = true\ncustom_mod = 7\n");
+    byte[] nulDamaged = new byte[291 + nulPayload.Length];
+    Buffer.BlockCopy(nulPayload, 0, nulDamaged, 291, nulPayload.Length);
+    File.WriteAllBytes(nulConfigPath, nulDamaged);
+    Require(LauncherConfigFile.ReadValues(nulConfigPath)["resolution_scale"] == "2", "NUL-prefixed config was not readable");
+    LauncherConfigFile.WriteValues(nulConfigPath, new Dictionary<string, string> { ["resolution_scale"] = "3" }, new[] { "resolution_scale" });
+    byte[] nulRepaired = File.ReadAllBytes(nulConfigPath);
+    Require(!nulRepaired.Contains((byte)0), "NUL bytes survived launcher normalization");
+    Require(LauncherConfigFile.ReadValues(nulConfigPath)["resolution_scale"] == "3", "NUL recovery lost managed value");
+    Require(LauncherConfigFile.ReadValues(nulConfigPath)["custom_mod"] == "7", "NUL recovery lost unknown value");
+    Require(File.ReadAllBytes(nulConfigPath + ".nul-recovery-backup").SequenceEqual(nulDamaged), "NUL recovery backup differs from corrupt source");
+    Console.WriteLine("NUL-corrupted SDK config recovery passed.");
+
+    // Regression: ReXGlue can persist --game_data_root as a raw Windows path.
+    // A trailing backslash then escapes the closing quote in TOML and used to
+    // make the launcher reject every subsequent graphics-settings save.
+    string sdkPathConfig = Path.Combine(testDirectory, "sdk-path-config.toml");
+    string malformedSdkPath =
+        "# Auto-generated cvar configuration\n" +
+        "window_width = 1920\n" +
+        "window_height = 1080\n" +
+        "game_data_root = \"D:\\Fable2\\Game\\\"\n" +
+        "resolution_scale = 2\n" +
+        "vsync = true\n";
+    File.WriteAllText(sdkPathConfig, malformedSdkPath);
+    Require(LauncherConfigFile.ReadValues(sdkPathConfig)["resolution_scale"] == "2",
+        "malformed SDK game_data_root blocked config read");
+    LauncherConfigFile.WriteValues(sdkPathConfig,
+        new Dictionary<string, string> { ["resolution_scale"] = "3", ["vsync"] = "false" },
+        new[] { "resolution_scale", "vsync" });
+    string repairedSdkPath = File.ReadAllText(sdkPathConfig);
+    Require(repairedSdkPath.Contains("game_data_root = " + TomlTextDocument.Quote(@"D:\Fable2\Game\")),
+        "SDK Windows path was not TOML-escaped");
+    Require(LauncherConfigFile.ReadValues(sdkPathConfig)["resolution_scale"] == "3",
+        "graphics save failed after SDK path recovery");
+    Require(LauncherConfigFile.ReadValues(sdkPathConfig)["vsync"] == "false",
+        "second graphics value failed after SDK path recovery");
+    Require(File.Exists(sdkPathConfig + ".sdk-path-recovery-backup"),
+        "SDK path recovery backup missing");
+    Console.WriteLine("SDK raw Windows game_data_root recovery passed.");
 
 
     foreach (string aa in new[] { "none", "fxaa", "fxaa_extreme" })
@@ -101,14 +146,19 @@ try
     string appXaml = Path.Combine(AppContext.BaseDirectory, "TestData", "App.xaml");
     XNamespace xamlNamespace = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
     var styles = XDocument.Load(appXaml).Descendants(xamlNamespace + "Style").ToList();
-    var textStyle = styles.Single(style => (string?)style.Attribute("TargetType") == "TextBlock");
-    Require(!textStyle.Elements(xamlNamespace + "Setter").Any(setter => (string?)setter.Attribute("Property") == "Foreground"),
-        "global TextBlock foreground overrides dropdown text inheritance");
+    // 2.0.0 design: no implicit TextBlock style (it would override the Georgia
+    // font and colours inside button/dropdown templates).
+    Require(!styles.Any(style => (string?)style.Attribute("TargetType") == "TextBlock" && style.Attribute(XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml") + "Key") is null),
+        "implicit TextBlock style overrides template fonts and dropdown text inheritance");
+    // Dark dropdowns: light text on the dark field brush, for the box and every item.
+    var brushes = XDocument.Load(appXaml).Descendants(xamlNamespace + "SolidColorBrush")
+        .ToDictionary(b => (string?)b.Attribute(XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml") + "Key") ?? "", b => (string?)b.Attribute("Color") ?? "");
+    Require(brushes.TryGetValue("TextBrush", out string? textColor) && textColor == "#FFF2E8DA", "text brush regression");
+    Require(brushes.TryGetValue("FieldBrush", out string? fieldColor) && fieldColor.EndsWith("120D0C", StringComparison.Ordinal), "dark field brush regression");
     foreach (string control in new[] { "ComboBox", "ComboBoxItem" })
     {
-        var style = styles.Single(style => (string?)style.Attribute("TargetType") == control);
-        Require(style.Elements(xamlNamespace + "Setter").Any(setter => (string?)setter.Attribute("Property") == "Foreground" && (string?)setter.Attribute("Value") == "#FF172020"), "dropdown foreground regression");
-        Require(style.Elements(xamlNamespace + "Setter").Any(setter => (string?)setter.Attribute("Property") == "Background" && (string?)setter.Attribute("Value") == "#FFF3EEE4"), "dropdown background regression");
+        var style = styles.Single(style => (string?)style.Attribute("TargetType") == control && style.Attribute(XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml") + "Key") is null);
+        Require(style.Elements(xamlNamespace + "Setter").Any(setter => (string?)setter.Attribute("Property") == "Foreground" && (string?)setter.Attribute("Value") == "{StaticResource TextBrush}"), "dropdown foreground regression: " + control);
     }
     Console.WriteLine("Dropdown text inheritance and contrast styles passed.");
 
@@ -338,6 +388,7 @@ try
     Console.WriteLine("Advanced options (fable2_config.toml) roundtrip and preservation passed.");
 
     TextureDiagnosticsTests.Run(testDirectory);
+    ConfigurationSafetyTests.Run(testDirectory);
 
     if (args.Length > 0)
     {

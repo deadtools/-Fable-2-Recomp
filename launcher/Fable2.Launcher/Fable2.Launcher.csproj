@@ -6,13 +6,13 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AssemblyName>Fable2Launcher</AssemblyName>
-    <Version>1.6.1</Version>
-    <AssemblyVersion>1.6.1.0</AssemblyVersion>
-    <InformationalVersion>1.6.1</InformationalVersion>
-    <FileVersion>1.6.1.0</FileVersion>
-    <AssemblyTitle>Fable II Recompiled — Launcher 1.6.1</AssemblyTitle>
+    <Version>2.0.0</Version>
+    <AssemblyVersion>2.0.0.0</AssemblyVersion>
+    <InformationalVersion>2.0.0</InformationalVersion>
+    <FileVersion>2.0.0.0</FileVersion>
+    <AssemblyTitle>Fable II Recompiled — Launcher 2.0.0</AssemblyTitle>
     <Product>Fable II Recompiled Launcher</Product>
-    <Description>Version 1.6.1: hero/dog texture fixes, Xbox/PlayStation prompts, adjustable game speed and EN/RU launcher language switch. Modifications by deadtools (https://github.com/deadtools).</Description>
+    <Description>Version 2.0.0: redesigned home screen and five-section settings. Keeps hero/dog texture modes, Xbox/PlayStation/keyboard prompts, game speed, patches, HOTFUNC and EN/RU. Modifications by deadtools (https://github.com/deadtools).</Description>
     <ApplicationIcon>..\..\assets\app-icon.ico</ApplicationIcon>
     <RootNamespace>Fable2Launcher</RootNamespace>
   </PropertyGroup>
@@ -22,5 +22,13 @@
          with tools/x360extract. Consumed as a project reference; produces X360ExtractCore.dll. -->
     <ProjectReference Include="..\..\tools\x360extract\lib\X360Extract.Core.csproj" />
     <Resource Include="..\..\assets\app-icon.png" Link="Assets\app-icon.png" />
+    <Resource Include="Resources\frames_elements_original.png" />
+    <Resource Include="Resources\MouseButtons\LMB.png" />
+    <Resource Include="Resources\MouseButtons\MMB.png" />
+    <Resource Include="Resources\MouseButtons\RMB.png" />
+    <Resource Include="Resources\V2\home-background.jpg" />
+    <Resource Include="Resources\V2\settings-background.jpg" />
+    <Resource Include="Resources\V2\gear.png" />
+    <Resource Include="Resources\V2\achievements.json" />
   </ItemGroup>
 </Project>

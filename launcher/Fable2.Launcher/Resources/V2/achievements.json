@@ -1,0 +1,402 @@
+{
+ "titleId": "4D5307F1",
+ "source": "Xenia profile GPD 4D5307F1.gpd (XDBF), 2026-11-01",
+ "achievements": [
+  {
+   "id": 10,
+   "points": 5,
+   "name": "Добрый хозяин",
+   "description": "Здорово было поиграть со своим псом, да? Малыш просто обожает игры!"
+  },
+  {
+   "id": 11,
+   "points": 5,
+   "name": "Археолог",
+   "description": "Покопавшись там, где порылась твоя собака, тебе удалось сделать находку."
+  },
+  {
+   "id": 12,
+   "points": 5,
+   "name": "Собаковод",
+   "description": "Репертуар твоего пса или пса другого Героя пополняется очередным трюком."
+  },
+  {
+   "id": 14,
+   "points": 5,
+   "name": "Мастер убеждения",
+   "description": "Тебе или твоему другу удалось выпросить подарок у селянина."
+  },
+  {
+   "id": 15,
+   "points": 5,
+   "name": "Позер",
+   "description": "Одно идеальное выражение - и бедные селяне только рот разевают в восторге. Какое позерство!"
+  },
+  {
+   "id": 16,
+   "points": 10,
+   "name": "Романтичная душа",
+   "description": "Тебе или твоему другу удалось организовать прекрасное свидание. Будем надеяться, оно того стоило."
+  },
+  {
+   "id": 17,
+   "points": 10,
+   "name": "Вторая половина",
+   "description": "У тебя была свадьба. Или у твоего друга. Что, не помнишь брачную ночь? Нечего было так напиваться."
+  },
+  {
+   "id": 18,
+   "points": 10,
+   "name": "Родитель",
+   "description": "Население Альбиона возрастает благодаря тебе или твоему другу."
+  },
+  {
+   "id": 21,
+   "points": 5,
+   "name": "Охотник",
+   "description": "Ну что, гордишься собой? Один убитый кролик - и ты у нас храбрый охотник? Спится-то ночью тебе как?"
+  },
+  {
+   "id": 22,
+   "points": 25,
+   "name": "Горгулья",
+   "description": "Тебе удалось добыть сокровища горгулий. Эти наглые каменные твари смеялись в последний раз!"
+  },
+  {
+   "id": 23,
+   "points": 5,
+   "name": "Гроза кур",
+   "description": "Пинаешь беззащитных куриц. Или это делает твой друг. Хорошо, что у них перья повышенной прочности."
+  },
+  {
+   "id": 24,
+   "points": 5,
+   "name": "Бесстрашный ныряльщик",
+   "description": "Тебе или твоему другу удалось нырнуть с утеса на глубину 500 футов. Герои не боятся высоты!"
+  },
+  {
+   "id": 25,
+   "points": 10,
+   "name": "Рабочая лошадка",
+   "description": "Нет ничего приятней, чем хорошо потрудиться!"
+  },
+  {
+   "id": 26,
+   "points": 5,
+   "name": "Герой Многих Имен",
+   "description": "Можешь менять титулы сколько угодно, твой друг - тоже, но мы знаем, кто есть кто. Нас не проведешь!"
+  },
+  {
+   "id": 27,
+   "points": 5,
+   "name": "Задира",
+   "description": "Разбойники заслуживают того, чтобы им пудрили мозги. А еще это безумно весело!"
+  },
+  {
+   "id": 28,
+   "points": 10,
+   "name": "Финансовый гений",
+   "description": "Дом удалось продать за двойную цену. Вот это сделка!"
+  },
+  {
+   "id": 31,
+   "points": 5,
+   "name": "Воришка",
+   "description": "Тебе удалось стащить что-то из дома, когда рядом были люди. Или это можно сказать о твоем друге."
+  },
+  {
+   "id": 32,
+   "points": 5,
+   "name": "Герой-Картинка",
+   "description": "Татуировки вечны. Как и это достижение."
+  },
+  {
+   "id": 33,
+   "points": 10,
+   "name": "Палач",
+   "description": "И стоило это достижение стольких жизней? Впрочем, все может быть."
+  },
+  {
+   "id": 34,
+   "points": 10,
+   "name": "Игрок",
+   "description": "Герою удалось выиграть 500 золотых в азартную игру за один присест. Пора бы сыграть еще!"
+  },
+  {
+   "id": 35,
+   "points": 10,
+   "name": "Адепт бигамии",
+   "description": "Свадьба - это так здорово! Зачем ограничиваться одним разом?"
+  },
+  {
+   "id": 36,
+   "points": 5,
+   "name": "Душа Оргий",
+   "description": "Захотелось лечь в постель сразу с несколькими? И почему-то вдруг сразу погас экран..."
+  },
+  {
+   "id": 37,
+   "points": 10,
+   "name": "Гуру танцев",
+   "description": "Ты или твой друг - душа танцевальных вечеринок! Только Герою под силу устроить такое веселье."
+  },
+  {
+   "id": 39,
+   "points": 10,
+   "name": "Гуляка",
+   "description": "Ты даришь пьяное веселье и тяжкое похмелье 5 поселянам за 3 минуты. Или это делает твой друг."
+  },
+  {
+   "id": 40,
+   "points": 5,
+   "name": "Угроза обществу",
+   "description": "Ты публично совершаешь непристойное действие. Или это твой друг... Фууу, как не стыдно?"
+  },
+  {
+   "id": 41,
+   "points": 10,
+   "name": "Черный Рыцарь",
+   "description": "Тебе удалось превратить охоту на пустотелых в высокое искусство."
+  },
+  {
+   "id": 42,
+   "points": 10,
+   "name": "Дуэлянт",
+   "description": "Ты мастер сражения, можешь выполнить серию молниеносных ударов. Или это можно сказать о твоем друге."
+  },
+  {
+   "id": 43,
+   "points": 10,
+   "name": "Меткий стрелок",
+   "description": "Ты поражаешь три цели одним выстрелом. Или это делает твой друг. Сам Ловкач такому позавидует."
+  },
+  {
+   "id": 44,
+   "points": 10,
+   "name": "Архимаг",
+   "description": "Пять человек были убиты одним мощным заклинанием."
+  },
+  {
+   "id": 45,
+   "points": 100,
+   "name": "Владыка Альбиона",
+   "description": "Во всем Альбионе нет Героя богаче!"
+  },
+  {
+   "id": 46,
+   "points": 25,
+   "name": "Скопидом",
+   "description": "Тебе или другу удалось найти все серебряные ключи в Альбионе. Кое-кто скажет: это мания! Но не мы."
+  },
+  {
+   "id": 47,
+   "points": 5,
+   "name": "Гот",
+   "description": "Все знают, что самый крутой цвет - черный."
+  },
+  {
+   "id": 48,
+   "points": 50,
+   "name": "Перфекционист",
+   "description": "Теперь ты знаешь все выражения, навыки и собачьи трюки. Или все это знает твой друг. Ну и упорство!"
+  },
+  {
+   "id": 49,
+   "points": 15,
+   "name": "Максималист",
+   "description": "Идея золотой середины не знакома тебе или твоему другу. Нейтральные Герои ужасно скучные."
+  },
+  {
+   "id": 50,
+   "points": 15,
+   "name": "Ходячая Крайность",
+   "description": "Идея золотой середины не знакома тебе или твоему другу."
+  },
+  {
+   "id": 51,
+   "points": 50,
+   "name": "Знаменитость",
+   "description": "Ты самая известная персона в Альбионе. Или это можно сказать о твоем друге. Герои заслужили славу!"
+  },
+  {
+   "id": 53,
+   "points": 10,
+   "name": "Мастер",
+   "description": "Ты образцовый работник, просто само трудолюбие. Или это можно сказать о твоем друге."
+  },
+  {
+   "id": 54,
+   "points": 10,
+   "name": "Коллекционер кукол",
+   "description": "Тебе или твоему другу удалось собрать все куклы Героев. Жаль, что нельзя продать их на аукционе."
+  },
+  {
+   "id": 55,
+   "points": 5,
+   "name": "Муза",
+   "description": "Теперь весь Альбион слышал песни о тебе, заказанные тобой же. Выскочка."
+  },
+  {
+   "id": 56,
+   "points": 10,
+   "name": "Компаньоны",
+   "description": "Вам удалось организовать совместное выражение. Здорово играть вместе, правда?"
+  },
+  {
+   "id": 57,
+   "points": 10,
+   "name": "Братья по оружию",
+   "description": "Вы получаете бонус от совместного боя."
+  },
+  {
+   "id": 58,
+   "points": 10,
+   "name": "Филантроп",
+   "description": "Друг по Xbox Live получает подарок! Герои - просто прелесть, правда?"
+  },
+  {
+   "id": 59,
+   "points": 25,
+   "name": "Зазнайка",
+   "description": "Герою-ребенку удалось собрать пять золотых для очень важной цели."
+  },
+  {
+   "id": 60,
+   "points": 50,
+   "name": "Новый Герой",
+   "description": "Тебе удалось сразиться с Убивцем Нетерпеливым и одолеть его. В Альбионе теперь есть новый Герой."
+  },
+  {
+   "id": 62,
+   "points": 100,
+   "name": "Герой Силы",
+   "description": "Тебе удалось завербовать Героя Силы или присутствовать при этом."
+  },
+  {
+   "id": 63,
+   "points": 100,
+   "name": "Герой Воли",
+   "description": "Тебе удалось завербовать Героя Воли или присутствовать при этом."
+  },
+  {
+   "id": 64,
+   "points": 100,
+   "name": "Герой Ловкости",
+   "description": "Тебе удалось завербовать Героя Ловкости или присутствовать при этом."
+  },
+  {
+   "id": 65,
+   "points": 25,
+   "name": "Великая Жертва",
+   "description": "Выбор сделан в пользу других людей. Близкие погибли, но выжили многие тысячи."
+  },
+  {
+   "id": 66,
+   "points": 25,
+   "name": "Семейный человек",
+   "description": "Выбор сделан в пользу семьи. Тысячи людей погибли, чтобы выжили близкие."
+  },
+  {
+   "id": 67,
+   "points": 25,
+   "name": "Воплощение Эгоизма",
+   "description": "Этот выбор принес благо лишь одному человеку. Тысячи людей погибли только ради чьего-то обогащения."
+  },
+  {
+   "id": 68,
+   "points": 25,
+   "name": "The Collector",
+   "description": "Thanks to heroic trading skills, every mystery item in The Box of Secrets has been uncovered."
+  },
+  {
+   "id": 69,
+   "points": 50,
+   "name": "The Meteorologist",
+   "description": "You, or a friend, recovered all the totems in Knothole Island and reactivated the Weather Chamber."
+  },
+  {
+   "id": 70,
+   "points": 25,
+   "name": "The Bibliophile",
+   "description": "You, or another Hero, have recovered the lost lore of Knothole Island."
+  },
+  {
+   "id": 71,
+   "points": 10,
+   "name": "The Nutcracker",
+   "description": "Heroes are the harbingers of injuries both painful and comedic. Which explains the 25 groin shots."
+  },
+  {
+   "id": 72,
+   "points": 10,
+   "name": "The Paramour",
+   "description": "Being a Hero isn't just about quests, it's about spreading the love. A lot of love."
+  },
+  {
+   "id": 73,
+   "points": 30,
+   "name": "The Concierge",
+   "description": "All the Demon Doors in Albion have been opened. No wonder there’s an unnatural draught."
+  },
+  {
+   "id": 74,
+   "points": 50,
+   "name": "The Visionary",
+   "description": "You have seen what is to come. But will you be ready for the future when it arrives?"
+  },
+  {
+   "id": 75,
+   "points": 25,
+   "name": "The Con Artist",
+   "description": "You, or a friend, managed to find all of Murgo's statuettes. A career in swindling beckons."
+  },
+  {
+   "id": 76,
+   "points": 10,
+   "name": "The Howler",
+   "description": "A balverine Hero scared five innocent bystanders. How were they to know it was just a costume?"
+  },
+  {
+   "id": 77,
+   "points": 10,
+   "name": "The Ghastly Jester",
+   "description": "Nothing makes people laugh more than hobbes dressed as heroes. Except Heroes dressed as hobbes."
+  },
+  {
+   "id": 78,
+   "points": 10,
+   "name": "The Repugnant",
+   "description": "You, or a friend, brought a wave of nausea to five poor people. It was probably fake rotting flesh."
+  },
+  {
+   "id": 79,
+   "points": 30,
+   "name": "The Gladiator",
+   "description": "20,000 Colosseum points! Few have attained such a landmark. Less than a million, probably."
+  },
+  {
+   "id": 80,
+   "points": 20,
+   "name": "The Multiplicator",
+   "description": "You, or a friend, reached an impressive multiplier of 10 in the intimidating Colosseum."
+  },
+  {
+   "id": 81,
+   "points": 20,
+   "name": "The Combatant",
+   "description": "The Colosseum's resident necromancer stood little chance against such a Hero."
+  },
+  {
+   "id": 82,
+   "points": 10,
+   "name": "The Fowl Player",
+   "description": "A Hero dressed as a chicken and proceeded to kick many of its own kind. We're sickened."
+  },
+  {
+   "id": 83,
+   "points": 15,
+   "name": "The Colourist",
+   "description": "You, or a friend, managed to collect all the special dyes secreted in other worlds."
+  }
+ ]
+}

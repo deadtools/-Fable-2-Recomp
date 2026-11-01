@@ -34,7 +34,7 @@ public class Fable2ConfigValues
     public bool HighTickRate { get; set; } = false;       // unstable
     public bool HigherHfTickRate { get; set; } = false;    // unstable
     public bool DisableMotionBlur { get; set; } = false;
-    public bool RealtimeTextureMorphing { get; set; } = true;
+    public bool RealtimeTextureMorphing { get; set; } = false;
     public bool HeroDogTextureReadback { get; set; } = false;
 
     // [perf]

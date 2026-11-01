@@ -7,13 +7,18 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
-using System.Windows.Navigation;
 using System.Windows.Threading;
 
 namespace Fable2Launcher;
 
 public partial class MainWindow : Window
 {
+    public const string LauncherVersion = "2.0.0";
+    // Project home: source code, releases and updates.
+    public const string ProjectUrl = "https://github.com/deadtools/-Fable-2-Recomp";
+    private const string UpdatesUrl = ProjectUrl + "/releases";
+    private const string AuthorUrl = "https://github.com/deadtools";
+
     private readonly Dictionary<string, string> _values = new(StringComparer.OrdinalIgnoreCase);
     private string? _gameDirectory;
     private string? _executableDirectory;
@@ -23,56 +28,54 @@ public partial class MainWindow : Window
     private bool _languageUiLoaded;
     private bool _localizing;
     private bool _localizationDisabled;
-    private ComboBox? _textureModeCombo;
-    private TextBlock? _textureModeHelp;
-    private TextBlock? _textureInputSummary;
-    private CheckBox? _readbackOverride;
-    private CheckBox? _dualShockCheck;
+    private bool _gameReady;
+    private bool _forceClose;
+    private string _savedSignature = "";
+    private HeroDogTextureMode _loadedTextureMode = HeroDogTextureMode.DiagnosticOff;
+    private Action? _afterUnsavedDecision;
 
-    // Advanced Options page state.
+    // fable2_config.toml values (advanced settings).
     private Fable2ConfigValues _advanced = new();
-    private readonly List<Border> _keyFields = new();
-    private readonly List<ComboBox> _buttonCombos = new();
-    private readonly List<(string key, CheckBox check)> _patchChecks = new();
-    private Border? _activeKeyField;
-    private static readonly SolidColorBrush MutedBrush = new(Color.FromRgb(0x8A, 0x99, 0x92));
-    // Red accent for unstable/experimental patches.
-    private static readonly SolidColorBrush UnstableBrush = new(Color.FromRgb(0xE0, 0x66, 0x66));
 
-    // Keybind capture field: the press-to-set host key box.
-    private sealed class KeyCaptureField
+    // Keybind rows.
+    private sealed class KeybindRow
     {
-        public Border Border = null!;
-        public TextBlock Text = null!;
-        public string Value = "";
+        public Border Root = null!;
+        public Border KeyField = null!;
+        public TextBlock KeyText = null!;
+        public ComboBox ButtonCombo = null!;
+        public string Key = "";
     }
+    private readonly List<KeybindRow> _keyRows = new();
+    private KeybindRow? _activeKeyRow;
+    private bool _syncingMouseCombos;
 
-    private static readonly Brush KeyIdleBackground = new SolidColorBrush(Color.FromRgb(0xF3, 0xEE, 0xE4));
-    private static readonly Brush KeyIdleBorder = new SolidColorBrush(Color.FromArgb(0x88, 0x7C, 0x6A, 0x48));
-    private static readonly Brush KeyListeningBackground = new SolidColorBrush(Color.FromRgb(0xE8, 0xF0, 0xF8));
-    private static readonly Brush KeyListeningBorder = new SolidColorBrush(Color.FromRgb(0x4A, 0x90, 0xD9));
-    private static readonly Brush KeyFieldText = new SolidColorBrush(Color.FromRgb(0x17, 0x20, 0x20));
+    private static readonly SolidColorBrush MutedBrush = new(Color.FromRgb(0xBD, 0xB0, 0x9C));
+    private static readonly SolidColorBrush DangerBrush = new(Color.FromRgb(0xE0, 0x71, 0x6A));
+    private static readonly SolidColorBrush WarningBrush = new(Color.FromRgb(0xE3, 0xA8, 0x5E));
+    private static readonly SolidColorBrush SuccessBrush = new(Color.FromRgb(0x8F, 0xD1, 0x9A));
+    private static readonly SolidColorBrush LightBrush = new(Color.FromRgb(0xF2, 0xE8, 0xDA));
+    private static readonly SolidColorBrush GoldTextBrush = new(Color.FromRgb(0xE9, 0xC9, 0x8C));
+    private static readonly SolidColorBrush RowBackground = new(Color.FromArgb(0xCC, 0x12, 0x0D, 0x0C));
+    private static readonly SolidColorBrush RowBorder = new(Color.FromRgb(0x5A, 0x41, 0x28));
+    private static readonly SolidColorBrush RowListening = new(Color.FromRgb(0x4A, 0x32, 0x20));
+    private static readonly SolidColorBrush RowListeningBorder = new(Color.FromRgb(0xF0, 0xD4, 0x9A));
 
     public MainWindow()
     {
         InitializeComponent();
+        FitToScreen();
         PreviewKeyDown += MainWindow_PreviewKeyDown;
-        Closing += (_, e) =>
-        {
-            if (_diagnosticRunning && MessageBox.Show(this,
-                L("Игра продолжит работать, но диагностический отчёт останется неполным. Закрыть лаунчер?"),
-                L("Диагностический сеанс"), MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
-                e.Cancel = true;
-        };
+        Closing += WindowClosing;
+        BuildStaticItems();
         SetDefaults();
-        DetectGameDirectory();
-        _loading = false;
         LauncherLanguage.SetCurrent(LauncherLanguage.Load(LauncherLanguage.StateFilePath));
         SelectByTag(LanguageCombo, LauncherLanguage.Current);
+        DetectGameDirectory();
+        _loading = false;
         _languageInitialized = true;
         RefreshSummary();
-        // Do not walk/mutate WPF controls while InitializeComponent and the
-        // constructor are building the visual tree. Localize only after Loaded.
+        // Localize only after the visual tree exists.
         Loaded += (_, _) =>
         {
             _languageUiLoaded = true;
@@ -82,6 +85,61 @@ public partial class MainWindow : Window
 
     private static string L(string original) => LauncherLanguage.T(original);
 
+    // ---------------------------------------------------------------- window
+
+    private void FitToScreen()
+    {
+        // Keep 16:9 and fit inside the work area on small screens.
+        Rect area = SystemParameters.WorkArea;
+        double width = Math.Min(1280, area.Width * 0.92);
+        double height = width * 9.0 / 16.0;
+        if (height > area.Height * 0.92)
+        {
+            height = area.Height * 0.92;
+            width = height * 16.0 / 9.0;
+        }
+        Width = Math.Round(width);
+        Height = Math.Round(height);
+    }
+
+    private void StageMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        // Drag the borderless window from any empty area.
+        if (e.ButtonState != MouseButtonState.Pressed) return;
+        for (DependencyObject? node = e.OriginalSource as DependencyObject; node is not null;
+             node = node is Visual || node is System.Windows.Media.Media3D.Visual3D
+                 ? VisualTreeHelper.GetParent(node) : LogicalTreeHelper.GetParent(node))
+        {
+            if (node is ButtonBase or ComboBox or Slider or TextBoxBase or ScrollBar or Thumb or Popup)
+                return;
+            if (ReferenceEquals(node, Stage)) break;
+        }
+        try { DragMove(); } catch (InvalidOperationException) { }
+    }
+
+    private void MinimizeClicked(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
+
+    private void CloseClicked(object sender, RoutedEventArgs e) => Close();
+
+    private void WindowClosing(object? sender, System.ComponentModel.CancelEventArgs e)
+    {
+        if (_forceClose) return;
+        if (_diagnosticRunning && MessageBox.Show(this,
+            L("Игра продолжит работать, но диагностический отчёт останется неполным. Закрыть лаунчер?"),
+            L("Диагностический сеанс"), MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
+        {
+            e.Cancel = true;
+            return;
+        }
+        if (IsDirty)
+        {
+            e.Cancel = true;
+            AskAboutUnsaved(() => { _forceClose = true; Close(); });
+        }
+    }
+
+    // ---------------------------------------------------------- localization
+
     private void ApplyLocalizedTexts()
     {
         if (!_languageInitialized || !_languageUiLoaded || _localizing || _localizationDisabled) return;
@@ -89,12 +147,11 @@ public partial class MainWindow : Window
         try
         {
             LauncherLocalization.Apply(this);
-            // Format dynamic values after localizing static labels.
             UpdateGameSpeedLabel();
         }
         catch (Exception error)
         {
-            // UI translation must never make the game launcher unusable.
+            // UI translation must never make the launcher unusable.
             _localizationDisabled = true;
             LauncherStartupDiagnostics.Report("EN/RU interface localization", error);
         }
@@ -117,26 +174,196 @@ public partial class MainWindow : Window
                 (language == LauncherLanguage.Russian
                     ? "Не удалось сохранить язык интерфейса: "
                     : "Could not save interface language: ") + exception.Message,
-                language == LauncherLanguage.Russian ? "Настройки языка" : "Language settings", MessageBoxButton.OK, MessageBoxImage.Warning);
+                language == LauncherLanguage.Russian ? "Настройки языка" : "Language settings",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
 
-    private void DeadtoolsLinkRequested(object sender, RequestNavigateEventArgs e)
+    // ------------------------------------------------------------ navigation
+
+    private void OpenSettingsClicked(object sender, RoutedEventArgs e) => ShowSettings(null);
+
+    private void ShowSettings(string? section)
     {
-        e.Handled = true;
-        try
+        HomePage.Visibility = Visibility.Collapsed;
+        SettingsPage.Visibility = Visibility.Visible;
+        AchievementsButton.Visibility = Visibility.Collapsed;
+        if (section is not null) SelectNav(section);
+        ApplyLocalizedTexts();
+    }
+
+    private void ShowHome()
+    {
+        CancelKeyCapture();
+        SettingsPage.Visibility = Visibility.Collapsed;
+        HomePage.Visibility = Visibility.Visible;
+        AchievementsButton.Visibility = Visibility.Visible;
+        UpdateGameStatus();
+        ApplyLocalizedTexts();
+    }
+
+    private void BackClicked(object sender, RoutedEventArgs e)
+    {
+        if (IsDirty) AskAboutUnsaved(ShowHome);
+        else ShowHome();
+    }
+
+    private void SelectNav(string section)
+    {
+        foreach (RadioButton nav in new[] { NavGraphics, NavControls, NavGame, NavOptimization, NavFiles })
+            if ((string)nav.Tag == section) nav.IsChecked = true;
+    }
+
+    private void NavChecked(object sender, RoutedEventArgs e)
+    {
+        if (sender is not RadioButton nav || SectionGraphics is null) return;
+        CancelKeyCapture();
+        string section = (string)nav.Tag;
+        SectionGraphics.Visibility = section == "graphics" ? Visibility.Visible : Visibility.Collapsed;
+        SectionControls.Visibility = section == "controls" ? Visibility.Visible : Visibility.Collapsed;
+        SectionGame.Visibility = section == "game" ? Visibility.Visible : Visibility.Collapsed;
+        SectionOptimization.Visibility = section == "optimization" ? Visibility.Visible : Visibility.Collapsed;
+        SectionFiles.Visibility = section == "files" ? Visibility.Visible : Visibility.Collapsed;
+        (SectionTitle.Text, SectionSubtitle.Text) = section switch
         {
-            Process.Start(new ProcessStartInfo("https://github.com/deadtools")
-            {
-                UseShellExecute = true
-            });
-        }
+            "controls" => ("Управление", "Переназначение клавиш, мышь и экранные подсказки геймпадов"),
+            "game" => ("Игра", "Скорость игры, профили качества и игровые патчи"),
+            "optimization" => ("Оптимизация", "Совместимость, чтение текстур и параметры исполнения"),
+            "files" => ("Файлы игры", "Расположение, извлечение ISO и локальная диагностика"),
+            _ => ("Графика", "Разрешение экрана, качество изображения и плавность"),
+        };
+        if (section == "files") UpdateGameStatus();
+        if (section == "controls") RefreshPromptResourceText();
+        ApplyLocalizedTexts();
+    }
+
+    private void ControlTabChecked(object sender, RoutedEventArgs e)
+    {
+        if (sender is not RadioButton tab || ControlsKeyboard is null) return;
+        CancelKeyCapture();
+        string name = (string)tab.Tag;
+        ControlsKeyboard.Visibility = name == "keyboard" ? Visibility.Visible : Visibility.Collapsed;
+        ControlsMouse.Visibility = name == "mouse" ? Visibility.Visible : Visibility.Collapsed;
+        ControlsPlayStation.Visibility = name == "playstation" ? Visibility.Visible : Visibility.Collapsed;
+        ControlsXbox.Visibility = name == "xbox" ? Visibility.Visible : Visibility.Collapsed;
+        if (name == "mouse") RefreshMouseButtonCombos();
+        if (name == "playstation") RefreshPromptResourceText();
+    }
+
+    private void GameTabChecked(object sender, RoutedEventArgs e)
+    {
+        if (sender is not RadioButton tab || GameSpeedTab is null) return;
+        bool speed = (string)tab.Tag == "speed";
+        GameSpeedTab.Visibility = speed ? Visibility.Visible : Visibility.Collapsed;
+        GamePatchesTab.Visibility = speed ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    private void OptTabChecked(object sender, RoutedEventArgs e)
+    {
+        if (sender is not RadioButton tab || OptCompatTab is null) return;
+        string name = (string)tab.Tag;
+        OptCompatTab.Visibility = name == "compat" ? Visibility.Visible : Visibility.Collapsed;
+        OptPerfTab.Visibility = name == "perf" ? Visibility.Visible : Visibility.Collapsed;
+        OptExperimentalTab.Visibility = name == "experimental" ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    // --------------------------------------------------------------- dialogs
+
+    private void WhatsNewClicked(object sender, RoutedEventArgs e)
+    {
+        WhatsNewOverlay.Visibility = Visibility.Visible;
+        ApplyLocalizedTexts();
+    }
+
+    private void CloseWhatsNewClicked(object sender, RoutedEventArgs e) =>
+        WhatsNewOverlay.Visibility = Visibility.Collapsed;
+
+    private void OverlayBackgroundClicked(object sender, MouseButtonEventArgs e)
+    {
+        WhatsNewOverlay.Visibility = Visibility.Collapsed;
+        e.Handled = true;
+    }
+
+    private void CheckUpdatesClicked(object sender, RoutedEventArgs e) => OpenUrl(UpdatesUrl);
+
+    private void DeadtoolsLinkClicked(object sender, RoutedEventArgs e) => OpenUrl(AuthorUrl);
+
+    private void ProjectLinkClicked(object sender, RoutedEventArgs e) => OpenUrl(ProjectUrl);
+
+    private void OpenUrl(string url)
+    {
+        try { Process.Start(new ProcessStartInfo(url) { UseShellExecute = true }); }
         catch (Exception ex)
         {
             MessageBox.Show(this, L("Не удалось открыть GitHub: ") + ex.Message,
                 L("Ссылка на автора доработок"), MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
+
+    private void AskAboutUnsaved(Action afterDecision)
+    {
+        _afterUnsavedDecision = afterDecision;
+        UnsavedOverlay.Visibility = Visibility.Visible;
+        ApplyLocalizedTexts();
+    }
+
+    private void UnsavedDiscardClicked(object sender, RoutedEventArgs e)
+    {
+        UnsavedOverlay.Visibility = Visibility.Collapsed;
+        ReloadAllFromDisk();
+        RunAfterUnsaved();
+    }
+
+    private void UnsavedCancelClicked(object sender, RoutedEventArgs e)
+    {
+        UnsavedOverlay.Visibility = Visibility.Collapsed;
+        _afterUnsavedDecision = null;
+    }
+
+    private void UnsavedSaveClicked(object sender, RoutedEventArgs e)
+    {
+        UnsavedOverlay.Visibility = Visibility.Collapsed;
+        if (SaveAll(interactive: true)) RunAfterUnsaved();
+        else _afterUnsavedDecision = null;
+    }
+
+    private void RunAfterUnsaved()
+    {
+        Action? next = _afterUnsavedDecision;
+        _afterUnsavedDecision = null;
+        next?.Invoke();
+    }
+
+    // -------------------------------------------------------- initial values
+
+    private void BuildStaticItems()
+    {
+        foreach (var option in Constants.GraphicsOptions.FrameLimits)
+            FrameLimitCombo.Items.Add(new ComboBoxItem { Tag = option.Value, Content = option.Label });
+
+        TextureModeCombo.Items.Add(new ComboBoxItem { Tag = HeroDogTextureMode.GpuRealtime,
+            Content = "Морфинг на GPU в реальном времени — экспериментальный" });
+        TextureModeCombo.Items.Add(new ComboBoxItem { Tag = HeroDogTextureMode.CompatibilityReadback,
+            Content = "Совместимый Readback — альтернативный режим" });
+        TextureModeCombo.Items.Add(new ComboBoxItem { Tag = HeroDogTextureMode.DiagnosticOff,
+            Content = "Стабильный режим v22 — без GPU Morphing / Forced Readback" });
+
+        foreach (ComboBox combo in new[] { MouseLmbCombo, MouseMmbCombo, MouseRmbCombo })
+        {
+            combo.Items.Add(new ComboBoxItem { Tag = "", Content = "— не назначено —" });
+            foreach (string name in Fable2ConfigFile.ButtonNames)
+                combo.Items.Add(new ComboBoxItem { Tag = name, Content = DescribeGamepadButton(name) });
+        }
+    }
+
+    private static string DescribeGamepadButton(string name) => name switch
+    {
+        "A" => "A — основное действие",
+        "B" => "B — дополнительно",
+        "X" => "X — действие",
+        "Y" => "Y — альтернативно",
+        _ => name,
+    };
 
     private void SetDefaults()
     {
@@ -147,9 +374,6 @@ public partial class MainWindow : Window
         SelectByTag(AnisotropicCombo, "5");
         SelectByTag(AntiAliasingCombo, "none");
         SelectByTag(DisplayModeCombo, "borderless");
-        if (FrameLimitCombo.Items.Count == 0)
-            foreach (var option in Constants.GraphicsOptions.FrameLimits)
-                FrameLimitCombo.Items.Add(new ComboBoxItem { Tag = option.Value, Content = option.Label });
         SelectByTag(FrameLimitCombo, "0");
         VsyncCheck.IsChecked = true;
     }
@@ -166,10 +390,7 @@ public partial class MainWindow : Window
             SetGameDirectory(configuredPath);
             return;
         }
-        // No saved (or no longer valid) game folder: default the selected location
-        // to the folder the launcher is running from, so it is never empty on first
-        // launch. The status line then explains what is still missing (e.g. that
-        // default.xex has not been extracted yet).
+        // No saved (or no longer valid) folder: use the launcher's own folder.
         SetGameDirectory(launcherDirectory);
     }
 
@@ -182,24 +403,35 @@ public partial class MainWindow : Window
         LauncherState.SaveGameDirectory(_gameDirectory);
         try
         {
-            LoadConfiguration();
-            GameCompatibility compatibility = GameCompatibilityInspector.Inspect(_gameDirectory);
-            GameLaunchPlanner.Create(_executableDirectory, _gameDirectory, compatibility);
-            StatusText.Text = compatibility.Message;
-            ConfigStateText.Text = compatibility.Label;
+            bool recovered = StabilityRecovery.TryRestoreCompatibilityReadback(AdvancedConfigPath(), out string recoveryMessage);
+            if (recovered) ShowStatus(recoveryMessage);
         }
         catch (Exception exception)
         {
-            StatusText.Text = exception.Message;
-            ConfigStateText.Text = "Не готово к запуску";
+            ShowStatus(exception.Message);
         }
+        ReloadAllFromDisk();
+        UpdateGameStatus();
         ApplyLocalizedTexts();
+    }
+
+    /// <summary>Reads fable_2.toml / launcher-settings.toml and fable2_config.toml into the UI.</summary>
+    private void ReloadAllFromDisk()
+    {
+        try { LoadConfiguration(); }
+        catch (Exception exception) { ShowStatus(exception.Message); }
+        try { LoadAdvanced(); }
+        catch (Exception exception)
+        {
+            ShowStatus(L("Не удалось прочитать расширенные настройки") + ": " + exception.Message);
+        }
+        _savedSignature = Signature();
+        UpdateDirty();
     }
 
     private void LoadConfiguration()
     {
         if (_gameDirectory is null) return;
-
         _loading = true;
         try
         {
@@ -221,19 +453,51 @@ public partial class MainWindow : Window
             SelectByTag(AnisotropicCombo, GetValue("anisotropic_override", "5"));
             SelectByTag(AntiAliasingCombo, Unquote(GetValue("swap_post_effect", "none")));
             SelectByTag(FrameLimitCombo, GetValue("frame_limit", "0"));
-            GameSpeedSlider.Value = GameSpeedSettings.ToStep(Fable2ConfigFile.Read(AdvancedConfigPath()).GameSpeed);
-            UpdateGameSpeedLabel();
-
             bool fullscreen = ParseBool(GetValue("fullscreen", "true"), true);
             bool exclusive = ParseBool(GetValue("fullscreen_exclusive", "false"), false);
             SelectByTag(DisplayModeCombo, !fullscreen ? "windowed" : exclusive ? "exclusive" : "borderless");
             VsyncCheck.IsChecked = ParseBool(GetValue("vsync", "true"), true);
-
         }
         finally { _loading = false; }
         RefreshSummary();
-        ConfigStateText.Text = "Настройки загружены";
-        ApplyLocalizedTexts();
+    }
+
+    private void LoadAdvanced()
+    {
+        _advanced = Fable2ConfigFile.Read(AdvancedConfigPath());
+        _loading = true;
+        try
+        {
+            GameSpeedSlider.Value = GameSpeedSettings.ToStep(_advanced.GameSpeed);
+            UpdateGameSpeedLabel();
+            MotionBlurCheck.IsChecked = _advanced.DisableMotionBlur;
+            MouseLookCheck.IsChecked = _advanced.MouseLook;
+            MouseSensitivitySlider.Value = Math.Clamp(_advanced.MouseLookScale, 1, 4096);
+            MouseSensitivityBox.Text = _advanced.MouseLookScale.ToString(CultureInfo.InvariantCulture);
+            HotFuncYieldSlider.Value = Math.Clamp(_advanced.HotFuncYieldEvery, 0, 16);
+            HotFuncYieldBox.Text = _advanced.HotFuncYieldEvery.ToString(CultureInfo.InvariantCulture);
+            BuildKeybindRows(Fable2ConfigFile.ParseKeybinds(_advanced.KeyboardGamepadMap));
+            SelectByTag(ControllerModeCombo, ControllerPromptSettings.Load() switch
+            {
+                ControllerPromptMode.PlayStation => "playstation",
+                ControllerPromptMode.KeyboardMouse => "keyboard",
+                _ => "xbox",
+            });
+            UnlockWebsiteCheck.IsChecked = _advanced.UnlockWebsite;
+            UnlockCeCheck.IsChecked = _advanced.UnlockCe;
+            SkipIntroCheck.IsChecked = _advanced.SkipIntroVideos;
+            // HF ticks require the base high tick rate.
+            HighTickCheck.IsChecked = _advanced.HighTickRate || _advanced.HigherHfTickRate;
+            HfTickCheck.IsChecked = _advanced.HigherHfTickRate;
+            _loadedTextureMode = TextureModeSettings.Get(_advanced);
+            SelectByTag(TextureModeCombo, _loadedTextureMode);
+            ReadbackOverrideCheck.IsChecked = false;
+        }
+        finally { _loading = false; }
+        UpdateControllerModeUi();
+        UpdateHfTickAvailability();
+        UpdateTextureModeHelp();
+        RefreshMouseButtonCombos();
     }
 
     private string GetValue(string key, string fallback) =>
@@ -247,19 +511,211 @@ public partial class MainWindow : Window
     private static string? SelectedTag(ComboBox combo) =>
         (combo.SelectedItem as ComboBoxItem)?.Tag?.ToString();
 
-    private static void SelectByTag(ComboBox combo, string tag)
+    private static void SelectByTag(ComboBox combo, object tag)
     {
+        string wanted = tag.ToString() ?? "";
         foreach (object item in combo.Items)
         {
             if (item is ComboBoxItem comboItem &&
-                string.Equals(comboItem.Tag?.ToString(), tag, StringComparison.OrdinalIgnoreCase))
+                string.Equals(comboItem.Tag?.ToString(), wanted, StringComparison.OrdinalIgnoreCase))
             {
                 combo.SelectedItem = comboItem;
                 return;
             }
         }
-        // An unknown/missing value must not silently select the first (lowest)
-        // resolution or render scale. Keep the explicit default/current choice.
+        // An unknown value must not silently select the first (lowest) option.
+    }
+
+    // ----------------------------------------------------------- game status
+
+    private void UpdateGameStatus()
+    {
+        if (_gameDirectory is null || _executableDirectory is null) return;
+        bool hasXex = File.Exists(Path.Combine(_gameDirectory, "default.xex"));
+        GameCompatibility? compatibility = null;
+        string? problem = null;
+        try
+        {
+            compatibility = GameCompatibilityInspector.Inspect(_gameDirectory);
+            GameLaunchPlanner.Create(_executableDirectory, _gameDirectory, compatibility);
+        }
+        catch (Exception exception) { problem = exception.Message; }
+        _gameReady = hasXex && problem is null;
+
+        // Home bar
+        NotFoundOverlay.Visibility = hasXex ? Visibility.Collapsed : Visibility.Visible;
+        GameMissingPill.Visibility = hasXex ? Visibility.Collapsed : Visibility.Visible;
+        GameFoundPanel.Visibility = hasXex ? Visibility.Visible : Visibility.Collapsed;
+        HomeLinks.Visibility = hasXex ? Visibility.Visible : Visibility.Collapsed;
+        HomeNotFoundHint.Visibility = hasXex ? Visibility.Collapsed : Visibility.Visible;
+        HomeVersionText.Text = hasXex ? "ВЕРСИЯ ЛАУНЧЕРА " + LauncherVersion : "ВЕРСИЯ " + LauncherVersion;
+        LaunchButton.IsEnabled = _gameReady && !_diagnosticRunning;
+
+        string profileName = compatibility?.Label ?? "";
+        const string FoundPrefix = "Обнаружена ";
+        if (profileName.StartsWith(FoundPrefix, StringComparison.Ordinal))
+            profileName = profileName[FoundPrefix.Length..];
+
+        if (_gameReady)
+        {
+            GameStatusDot.Fill = SuccessBrush;
+            GameStatusTitle.Text = "Игра найдена";
+            GameStatusSubtitle.Text = profileName.ToUpperInvariant();
+            GameFoundPanel.ToolTip = compatibility?.Message;
+        }
+        else if (hasXex)
+        {
+            GameStatusDot.Fill = WarningBrush;
+            GameStatusTitle.Text = "Запуск недоступен";
+            GameStatusSubtitle.Text = compatibility?.Label ?? "";
+            GameFoundPanel.ToolTip = problem;
+        }
+
+        // Files section
+        FilesStatusDot.Fill = _gameReady ? SuccessBrush : hasXex ? WarningBrush : DangerBrush;
+        FilesStatusText.Text = _gameReady ? "Найдена " + profileName
+            : hasXex ? (compatibility?.Label ?? "Запуск недоступен") : "Файлы игры не найдены";
+        FilesStatusDetail.Text = _gameReady ? compatibility?.Message ?? "" : problem ?? "";
+        _achievementProfile = hasXex && profileName.Length > 0 ? profileName.ToUpperInvariant() : "";
+        RefreshAchievements();
+        RefreshPromptResourceText();
+        ApplyLocalizedTexts();
+    }
+
+    private void ShowStatus(string message)
+    {
+        StatusText.Text = message;
+        StatusBorder.Visibility = string.IsNullOrWhiteSpace(message) ? Visibility.Collapsed : Visibility.Visible;
+        ApplyLocalizedTexts();
+    }
+
+    // ---------------------------------------------------------- dirty state
+
+    private bool IsDirty => !_loading && _savedSignature.Length > 0 && Signature() != _savedSignature;
+
+    /// <summary>Every persisted setting in one string; per-session toggles are excluded.</summary>
+    private string Signature()
+    {
+        var parts = new List<string>
+        {
+            SelectedTag(ResolutionCombo) ?? "", SelectedTag(RenderScaleCombo) ?? "",
+            SelectedTag(AnisotropicCombo) ?? "", SelectedTag(AntiAliasingCombo) ?? "",
+            SelectedTag(DisplayModeCombo) ?? "", SelectedTag(FrameLimitCombo) ?? "",
+            (VsyncCheck.IsChecked == true).ToString(), (MotionBlurCheck.IsChecked == true).ToString(),
+            GameSpeedSlider.Value.ToString(CultureInfo.InvariantCulture),
+            SelectedTag(ControllerModeCombo) ?? "",
+            (MouseLookCheck.IsChecked == true).ToString(),
+            ((int)MouseSensitivitySlider.Value).ToString(CultureInfo.InvariantCulture),
+            HotFuncYieldBox.Text.Trim(),
+            CollectKeybinds(),
+            (UnlockWebsiteCheck.IsChecked == true).ToString(), (UnlockCeCheck.IsChecked == true).ToString(),
+            (SkipIntroCheck.IsChecked == true).ToString(), (HighTickCheck.IsChecked == true).ToString(),
+            (HfTickCheck.IsChecked == true).ToString(), SelectedTextureMode().ToString(),
+        };
+        return string.Join("\u001f", parts);
+    }
+
+    private void UpdateDirty()
+    {
+        if (UnsavedIndicator is null || SaveButton is null) return;
+        bool dirty = IsDirty;
+        UnsavedIndicator.Text = "●  Есть несохранённые изменения";
+        UnsavedIndicator.Foreground = WarningBrush;
+        UnsavedIndicator.Visibility = dirty ? Visibility.Visible : Visibility.Hidden;
+        SaveButton.Content = dirty ? "СОХРАНИТЬ *" : "СОХРАНИТЬ";
+        UpdatePresetIndicator();
+        ApplyLocalizedTexts();
+    }
+
+    private void ShowSavedIndicator()
+    {
+        UnsavedIndicator.Text = "✓  Настройки сохранены";
+        UnsavedIndicator.Foreground = SuccessBrush;
+        UnsavedIndicator.Visibility = Visibility.Visible;
+        ApplyLocalizedTexts();
+    }
+
+    private void SettingChanged(object sender, RoutedEventArgs e)
+    {
+        if (_loading) return;
+        RefreshSummary();
+        UpdateDirty();
+    }
+
+    private void SettingChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_loading) return;
+        RefreshSummary();
+        UpdateDirty();
+    }
+
+    // ----------------------------------------------------------------- save
+
+    private void SaveClicked(object sender, RoutedEventArgs e)
+    {
+        if (SaveAll(interactive: true)) ShowSavedIndicator();
+    }
+
+    /// <summary>
+    /// One save for everything: fable2_config.toml (patches, controls, speed,
+    /// texture mode, HOTFUNC), the controller prompt mode, then the graphics
+    /// transaction for fable_2.toml / launcher-settings.toml.
+    /// </summary>
+    private bool SaveAll(bool interactive)
+    {
+        if (_gameDirectory is null || _executableDirectory is null ||
+            !File.Exists(Path.Combine(_executableDirectory, "fable_2.exe")))
+        {
+            if (interactive)
+                MessageBox.Show(this, L("Сначала выберите папку, содержащую fable_2.exe."),
+                    L("Игра не найдена"), MessageBoxButton.OK, MessageBoxImage.Warning);
+            return false;
+        }
+
+        CommitNumberBoxes();
+        HeroDogTextureMode mode = SelectedTextureMode();
+        if (interactive && mode == HeroDogTextureMode.DiagnosticOff && _loadedTextureMode != mode &&
+            MessageBox.Show(this, L("Отключить оба исправления текстур? Герой и собака могут отображаться чёрными."),
+                L("Только диагностический режим"), MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
+            return false;
+
+        _advanced.GameSpeed = SelectedGameSpeed();
+        _advanced.DisableMotionBlur = MotionBlurCheck.IsChecked == true;
+        _advanced.MouseLook = MouseLookCheck.IsChecked == true;
+        _advanced.MouseLookScale = (int)MouseSensitivitySlider.Value;
+        _advanced.HotFuncYieldEvery = int.TryParse(HotFuncYieldBox.Text, NumberStyles.Integer,
+            CultureInfo.InvariantCulture, out int yieldEvery)
+            ? Math.Clamp(yieldEvery, 0, 4096) : (int)HotFuncYieldSlider.Value;
+        _advanced.KeyboardGamepadMap = CollectKeybinds();
+        _advanced.UnlockWebsite = UnlockWebsiteCheck.IsChecked == true;
+        _advanced.UnlockCe = UnlockCeCheck.IsChecked == true;
+        _advanced.SkipIntroVideos = SkipIntroCheck.IsChecked == true;
+        _advanced.HighTickRate = HighTickCheck.IsChecked == true;
+        _advanced.HigherHfTickRate = HighTickCheck.IsChecked == true && HfTickCheck.IsChecked == true;
+        TextureModeSettings.Apply(_advanced, mode);
+
+        Dictionary<string, string> graphics = CollectSettings();
+        try
+        {
+            Fable2ConfigFile.Write(AdvancedConfigPath(), _advanced);
+            ControllerPromptSettings.Save(SelectedControllerMode());
+            GraphicsConfigurationTransaction.Save(_executableDirectory,
+                graphics, GraphicsSettings.ManagedKeys, SelectedGameSpeed());
+            _values.Clear();
+            foreach ((string key, string value) in graphics) _values[key] = value;
+        }
+        catch (Exception exception)
+        {
+            MessageBox.Show(this, L(exception.Message), L("Не удалось сохранить настройки"),
+                MessageBoxButton.OK, MessageBoxImage.Error);
+            return false;
+        }
+
+        _loadedTextureMode = mode;
+        _savedSignature = Signature();
+        UpdateDirty();
+        UpdateTextureModeHelp();
+        return true;
     }
 
     private Dictionary<string, string> CollectSettings()
@@ -270,38 +726,15 @@ public partial class MainWindow : Window
             VsyncCheck.IsChecked == true, SelectedTag(FrameLimitCombo) ?? "0");
     }
 
-    private bool SaveConfiguration()
+    private void CommitNumberBoxes()
     {
-        if (_gameDirectory is null || _executableDirectory is null || !File.Exists(Path.Combine(_executableDirectory, "fable_2.exe")))
-        {
-            MessageBox.Show(this, L("Сначала выберите папку, содержащую fable_2.exe."),
-                L("Игра не найдена"), MessageBoxButton.OK, MessageBoxImage.Warning);
-            return false;
-        }
-
-        string path = Path.Combine(_executableDirectory, "fable_2.toml");
-        Dictionary<string, string> settings = CollectSettings();
-        try
-        {
-            LauncherConfigFile.WriteValues(path, settings, GraphicsSettings.ManagedKeys);
-            LauncherConfigFile.WriteValues(Path.Combine(_executableDirectory,
-                "launcher-settings.toml"), settings, GraphicsSettings.ManagedKeys);
-            Fable2ConfigFile.WriteGameSpeed(AdvancedConfigPath(), SelectedGameSpeed());
-            _values.Clear();
-            foreach ((string key, string value) in settings) _values[key] = value;
-        }
-        catch (Exception exception)
-        {
-            MessageBox.Show(this, L(exception.Message), L("Не удалось сохранить настройки"),
-                MessageBoxButton.OK, MessageBoxImage.Error);
-            return false;
-        }
-
-        StatusText.Text = $"Сохранено: {Path.GetFileName(path)}.";
-        ConfigStateText.Text = "Настройки сохранены";
-        ApplyLocalizedTexts();
-        return true;
+        MouseSensitivityBoxLostFocus(MouseSensitivityBox, new RoutedEventArgs());
+        HotFuncYieldBoxLostFocus(HotFuncYieldBox, new RoutedEventArgs());
     }
+
+    // ---------------------------------------------------------------- launch
+
+    private void LaunchClicked(object sender, RoutedEventArgs e) => LaunchGame();
 
     private async void LaunchGame()
     {
@@ -315,11 +748,9 @@ public partial class MainWindow : Window
             if (SelectedGameSpeed() != GameSpeedSettings.Default &&
                 !GameSpeedSettings.SupportsRuntime(plan.Executable))
                 throw new InvalidOperationException(L("Для скорости отличной от 1,0× нужен новый fable_2.exe.\n\nЗакройте игру и запустите BUILD-GAME-SPEED-LOCAL.cmd из папки исходников. Одной пересборки лаунчера недостаточно."));
+            // Graphics keys are always rewritten before launch (as in 1.6.2).
+            if (!SaveAll(interactive: IsDirty)) return;
             var saved = Fable2ConfigFile.Read(AdvancedConfigPath());
-            if (TextureModeSettings.Get(saved) == HeroDogTextureMode.DiagnosticOff &&
-                MessageBox.Show(this, L("Оба исправления текстур героя и собаки отключены. Ожидаются чёрные текстуры. Продолжить диагностический тест?"),
-                    L("Режим текстур"), MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
-            if (!SaveConfiguration()) return;
             var startInfo = new ProcessStartInfo
             {
                 FileName = plan.Executable,
@@ -327,27 +758,33 @@ public partial class MainWindow : Window
                 UseShellExecute = false
             };
             startInfo.ArgumentList.Add("--game_data_root=" + plan.GameRoot);
-            if (_readbackOverride?.IsChecked == true)
+            if (ReadbackOverrideCheck.IsChecked == true &&
+                TextureModeSettings.Get(saved) == HeroDogTextureMode.CompatibilityReadback)
                 TextureModeSettings.AddReadbackOverride(startInfo, saved);
 
-            bool useDualShock = LauncherState.LoadDualShockEnabled();
-            string dualShockStatus = DualShockPromptPatcher.Apply(_gameDirectory, useDualShock);
-            StatusText.Text = dualShockStatus;
-            ApplyLocalizedTexts();
+            ControllerPromptMode controllerMode = ControllerPromptSettings.Load();
+            string controllerStatus = controllerMode switch
+            {
+                ControllerPromptMode.PlayStation => DualShockPromptPatcher.Apply(_gameDirectory, true),
+                ControllerPromptMode.KeyboardMouse => DualShockPromptPatcher.ApplyKeyboardMouse(
+                    _gameDirectory, saved.KeyboardGamepadMap),
+                _ => DualShockPromptPatcher.Apply(_gameDirectory, false),
+            };
+            // PubGames use their own SWF symbols, not the common GameFace BNKs.
+            string pubGamesStatus = PubGamePromptPatcher.Apply(_gameDirectory,
+                controllerMode, saved.KeyboardGamepadMap, saved.MouseLook);
+            ShowStatus(controllerStatus + " " + pubGamesStatus);
             bool diagnostic = DiagnosticCheck.IsChecked == true;
             if (diagnostic)
             {
                 _diagnosticRunning = true;
-                MainContent.IsEnabled = MainFooter.IsEnabled = AdvancedOptionsButton.IsEnabled = false;
-                StatusText.Text = "Подготовка локального диагностического отчёта…";
-                ApplyLocalizedTexts();
-                session = await Task.Run(() => LaunchDiagnostics.Begin(plan, startInfo));
+                SetInteractive(false);
+                ShowStatus("Подготовка локального диагностического отчёта…");
+                session = await Task.Run(() => LaunchDiagnostics.Begin(plan, startInfo, controllerMode, controllerStatus, pubGamesStatus));
             }
             using var process = Process.Start(startInfo) ?? throw new InvalidOperationException(L("Не удалось запустить процесс игры."));
-            StatusText.Text = "Fable II запущена.";
-            ConfigStateText.Text = "Игра запущена";
-            ApplyLocalizedTexts();
-            if (!diagnostic) { Close(); return; }
+            ShowStatus("Fable II запущена.");
+            if (!diagnostic) { _forceClose = true; Close(); return; }
             session!.MarkStarted(process.Id);
             WindowState = WindowState.Minimized;
             await process.WaitForExitAsync();
@@ -356,10 +793,25 @@ public partial class MainWindow : Window
             _diagnosticRunning = false;
             WindowState = WindowState.Normal;
             Activate();
-            StatusText.Text = $"Игра завершилась с кодом {LaunchDiagnostics.FormatExitCode(exitCode)}. Отчёт: {session.DirectoryPath}";
-            ConfigStateText.Text = "Диагностический отчёт сохранён";
-            ApplyLocalizedTexts();
-            MessageBox.Show(this, L($"Код завершения процесса: {LaunchDiagnostics.FormatExitCode(exitCode)}\n\nЛокальный отчёт сохранён:\n{session.DirectoryPath}\n\nНикакие файлы не отправлялись. Перед передачей отчёта проверьте пути и настройки. Один код завершения не определяет причину сбоя."),
+            ShowStatus($"Игра завершилась с кодом {LaunchDiagnostics.FormatExitCode(exitCode)}. Отчёт: {session.ResultPath}");
+            bool russian = LauncherLanguage.Current == LauncherLanguage.Russian;
+            string zipNote = session.ArchivePath is not null
+                ? (russian
+                    ? "\n\nАрхив ZIP создан автоматически. Для отправки выберите этот .zip; папка также сохранена."
+                    : "\n\nThe ZIP archive was created automatically. Share this .zip file; the source folder is also retained.")
+                : (russian ? "\n\nОшибка ZIP: " : "\n\nZIP creation failed: ") + session.ArchiveError;
+            string dumpNote = exitCode == 0 ? "" : session.CrashDumpDetected
+                ? (russian
+                    ? "\n\nДамп WER найден. См. crash-dump-status.txt. Дамп НЕ включён в ZIP, поскольку может содержать личные данные."
+                    : "\n\nWER dump located; see crash-dump-status.txt. It is NOT included in the ZIP because it may contain private data.")
+                : session.WerRegistryConfigured
+                    ? (russian
+                        ? "\n\nДамп пока не найден, хотя WER настроен. Проверь crash-dump-status.txt."
+                        : "\n\nNo dump was found despite WER registry settings. Check crash-dump-status.txt.")
+                    : (russian
+                        ? "\n\nДампы WER не настроены. Запусти ENABLE-FABLE2-WER-DUMPS.cmd от имени администратора для следующего теста."
+                        : "\n\nWER dumps are not configured. Run ENABLE-FABLE2-WER-DUMPS.cmd as administrator before the next test.");
+            MessageBox.Show(this, L($"Код завершения процесса: {LaunchDiagnostics.FormatExitCode(exitCode)}\n\nЛокальный отчёт сохранён:\n{session.ResultPath}\n\nНикакие файлы не отправлялись. Перед передачей отчёта проверьте пути и настройки. Один код завершения не определяет причину сбоя.") + zipNote + dumpNote,
                 L("Диагностический сеанс завершён"), MessageBoxButton.OK, MessageBoxImage.Information);
         }
         catch (Exception exception)
@@ -376,16 +828,24 @@ public partial class MainWindow : Window
         finally
         {
             _diagnosticRunning = false;
-            MainContent.IsEnabled = MainFooter.IsEnabled = AdvancedOptionsButton.IsEnabled = true;
+            SetInteractive(true);
+            UpdateGameStatus();
         }
     }
 
-    private void RefreshSummary(bool markDirty = false)
+    private void SetInteractive(bool enabled)
+    {
+        HomeSettingsButton.IsEnabled = enabled;
+        SettingsPage.IsEnabled = enabled;
+        LaunchButton.IsEnabled = enabled && _gameReady;
+    }
+
+    // -------------------------------------------------------------- graphics
+
+    private void RefreshSummary()
     {
         int scale = int.TryParse(SelectedTag(RenderScaleCombo), NumberStyles.Integer,
             CultureInfo.InvariantCulture, out int parsedScale) ? parsedScale : 1;
-        InternalResolutionText.Text = $"Внутреннее: {1280 * scale:N0} × {720 * scale:N0}";
-
         string output = SelectedTag(ResolutionCombo) switch
         {
             "720p" => "1280 × 720",
@@ -394,14 +854,77 @@ public partial class MainWindow : Window
             "4k" => "3840 × 2160",
             _ => "Автоматически"
         };
-        OutputResolutionText.Text = $"На экране: {output}";
-
-        if (!_loading && markDirty)
-        {
-            ConfigStateText.Text = "Есть несохранённые изменения";
-        }
+        QualitySummaryText.Text = $"{1280 * scale} × {720 * scale}  →  {output}";
         ApplyLocalizedTexts();
     }
+
+    private void PresetClicked(object sender, RoutedEventArgs e)
+    {
+        string preset = (sender as FrameworkElement)?.Tag?.ToString() ?? "balanced";
+        _loading = true;
+        try
+        {
+            switch (preset)
+            {
+                case "original":
+                    SelectByTag(ResolutionCombo, "720p");
+                    SelectByTag(RenderScaleCombo, "1");
+                    SelectByTag(AnisotropicCombo, "-1");
+                    break;
+                case "balanced":
+                    SelectByTag(ResolutionCombo, "1080p");
+                    SelectByTag(RenderScaleCombo, "2");
+                    SelectByTag(AnisotropicCombo, "4");
+                    break;
+                case "enhanced":
+                    SelectByTag(ResolutionCombo, "4k");
+                    SelectByTag(RenderScaleCombo, "3");
+                    SelectByTag(AnisotropicCombo, "5");
+                    break;
+                case "ultra":
+                    SelectByTag(ResolutionCombo, "4k");
+                    SelectByTag(RenderScaleCombo, "4");
+                    SelectByTag(AnisotropicCombo, "5");
+                    break;
+            }
+            SelectByTag(DisplayModeCombo, "borderless");
+            SelectByTag(AntiAliasingCombo, "none");
+            VsyncCheck.IsChecked = true;
+        }
+        finally { _loading = false; }
+        RefreshSummary();
+        UpdateDirty();
+    }
+
+    /// <summary>Highlights the preset that matches the current graphics values.</summary>
+    private void UpdatePresetIndicator()
+    {
+        if (PresetOriginal is null) return;
+        string key = string.Join("|", SelectedTag(ResolutionCombo), SelectedTag(RenderScaleCombo),
+            SelectedTag(AnisotropicCombo), SelectedTag(DisplayModeCombo), SelectedTag(AntiAliasingCombo),
+            VsyncCheck.IsChecked == true);
+        string? match = key switch
+        {
+            "720p|1|-1|borderless|none|True" => "original",
+            "1080p|2|4|borderless|none|True" => "balanced",
+            "4k|3|5|borderless|none|True" => "enhanced",
+            "4k|4|5|borderless|none|True" => "ultra",
+            _ => null,
+        };
+        foreach (RadioButton preset in new[] { PresetOriginal, PresetBalanced, PresetEnhanced, PresetUltra })
+            preset.IsChecked = (string)preset.Tag == match;
+        string state = match switch
+        {
+            "original" => "Текущий профиль: Оригинал.",
+            "balanced" => "Текущий профиль: Сбалансированный.",
+            "enhanced" => "Текущий профиль: Улучшенный.",
+            "ultra" => "Текущий профиль: Ультра (экспериментально, очень высокий расход видеопамяти).",
+            _ => "Текущий профиль: Пользовательский.",
+        };
+        PresetDescription.Text = state + " " + "Пресет меняет несколько параметров графики. После ручной настройки состояние — «Пользовательский».";
+    }
+
+    // ------------------------------------------------------------ game speed
 
     private double SelectedGameSpeed() => GameSpeedSettings.FromStep(GameSpeedSlider.Value);
 
@@ -418,57 +941,12 @@ public partial class MainWindow : Window
     private void GameSpeedChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
         UpdateGameSpeedLabel();
-        if (!_loading) RefreshSummary(markDirty: true);
+        if (!_loading) UpdateDirty();
     }
 
     private void ResetGameSpeedClicked(object sender, RoutedEventArgs e) => GameSpeedSlider.Value = 10;
 
-    private void SettingChanged(object sender, RoutedEventArgs e)
-    {
-        if (!_loading) RefreshSummary(markDirty: true);
-    }
-
-    private void SettingChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (!_loading) RefreshSummary(markDirty: true);
-    }
-
-    private void PresetClicked(object sender, RoutedEventArgs e)
-    {
-        string preset = (sender as Button)?.Tag?.ToString() ?? "balanced";
-        switch (preset)
-        {
-            case "original":
-                SelectByTag(ResolutionCombo, "720p");
-                SelectByTag(RenderScaleCombo, "1");
-                SelectByTag(AnisotropicCombo, "-1");
-                PresetDescription.Text = "Оригинальный рендеринг Xbox 360: внутренние 720p и фильтрация текстур под управлением игры.";
-                break;
-            case "balanced":
-                SelectByTag(ResolutionCombo, "1080p");
-                SelectByTag(RenderScaleCombo, "2");
-                SelectByTag(AnisotropicCombo, "4");
-                PresetDescription.Text = "Внутренний рендеринг 1440p с 8× анизотропной фильтрацией и выводом в 1080p.";
-                break;
-            case "enhanced":
-                SelectByTag(ResolutionCombo, "4k");
-                SelectByTag(RenderScaleCombo, "3");
-                SelectByTag(AnisotropicCombo, "5");
-                PresetDescription.Text = "Настоящий внутренний рендеринг 4K с 16× анизотропной фильтрацией. Рекомендуется для современных видеокарт.";
-                break;
-            case "ultra":
-                SelectByTag(ResolutionCombo, "4k");
-                SelectByTag(RenderScaleCombo, "4");
-                SelectByTag(AnisotropicCombo, "5");
-                PresetDescription.Text = "Внутренний суперсэмплинг 5K с уменьшением до 4K. Экспериментальный режим с очень высоким расходом видеопамяти.";
-                break;
-        }
-        SelectByTag(DisplayModeCombo, "borderless");
-        SelectByTag(AntiAliasingCombo, "none");
-        VsyncCheck.IsChecked = true;
-        RefreshSummary(markDirty: true);
-        ApplyLocalizedTexts();
-    }
+    // ------------------------------------------------------------- game files
 
     private void BrowseClicked(object sender, RoutedEventArgs e)
     {
@@ -477,28 +955,25 @@ public partial class MainWindow : Window
             Title = L("Выберите папку оригинальной игры (default.xex и data)"),
             Multiselect = false
         };
-        if (dialog.ShowDialog(this) == true)
+        if (dialog.ShowDialog(this) != true) return;
+        if (!File.Exists(Path.Combine(dialog.FolderName, "default.xex")))
         {
-            if (!File.Exists(Path.Combine(dialog.FolderName, "default.xex")))
-            {
-                MessageBox.Show(this, L("В этой папке нет файла default.xex."),
-                    L("Игра не найдена"), MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
-            }
-            SetGameDirectory(dialog.FolderName);
+            MessageBox.Show(this, L("В этой папке нет файла default.xex."),
+                L("Игра не найдена"), MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
         }
+        if (IsDirty) AskAboutUnsaved(() => SetGameDirectory(dialog.FolderName));
+        else SetGameDirectory(dialog.FolderName);
     }
 
     private bool _extracting;
     private volatile bool _stopRequested;
-    // Non-null while the "unrecognized XEX" prompt is on screen; the worker
-    // awaits its Task so the user can choose to extract anyways or stop.
+    // Non-null while the "unrecognized XEX" prompt is on screen.
     private TaskCompletionSource<bool>? _hashDecision;
     private readonly Dictionary<string, CheckBox> _rootChecks = new(StringComparer.OrdinalIgnoreCase);
     private long _lastUiPush;
     private double _lastPushedPercent = -1;
-    private static readonly SolidColorBrush DoneBrush = new(Color.FromRgb(0x7F, 0xE0, 0xA6));
-    private static readonly SolidColorBrush ItemBrush = new(Color.FromRgb(0xD0, 0xD8, 0xD2));
+    private static readonly SolidColorBrush DoneBrush = new(Color.FromRgb(0x8F, 0xD1, 0x9A));
 
     private void ExtractClicked(object sender, RoutedEventArgs e)
     {
@@ -513,9 +988,7 @@ public partial class MainWindow : Window
         if (isoDialog.ShowDialog(this) != true) return;
         string isoPath = isoDialog.FileName;
 
-        // No destination prompt: extract straight into the folder the launcher is
-        // running from, so the game data lands beside fable_2.exe and becomes
-        // launchable in place.
+        // Extract straight into the launcher folder, beside fable_2.exe.
         string outDir = AppContext.BaseDirectory;
 
         _extracting = true;
@@ -524,9 +997,6 @@ public partial class MainWindow : Window
         LaunchButton.IsEnabled = false;
         StopButton.IsEnabled = true;
 
-        // Show the overlay immediately (indeterminate) so there is no perceptible
-        // delay; the folder checklist and byte total fill in once the disc layout
-        // has been read on the worker thread.
         ExtractionOverlay.Visibility = Visibility.Visible;
         ExtractionProgressBar.IsIndeterminate = true;
         ExtractionPercentText.Text = "…";
@@ -554,22 +1024,17 @@ public partial class MainWindow : Window
                 progress.RootCompleted += name =>
                     Dispatcher.BeginInvoke(new Action(() => MarkRootDone(name)));
 
-                // If Stop was pressed while the layout was being read, bail now.
                 if (_stopRequested)
                     throw new ExtractionCancelledException();
 
-                // The overlay is already on screen (indeterminate); now that the
-                // layout is known, build the checklist and switch to the byte-
-                // accurate determinate bar.
                 Dispatcher.Invoke(() =>
                 {
                     BuildFolderChecklist(plan);
                     ResetExtractionUi(progress);
                 });
 
-                // Extract the XEX under a temporary name so that a failed hash
-                // check (or a user declining to extract) never clobbers an
-                // existing default.xex already in the launcher folder.
+                // Extract the XEX under a temporary name so a failed hash check
+                // never clobbers an existing default.xex.
                 const string xexNewName = "default_new.xex";
                 string xexNew = Path.Combine(outDir, xexNewName);
                 string hash = disc.ExtractXex(outDir, _ => { }, progress, xexNewName);
@@ -577,10 +1042,6 @@ public partial class MainWindow : Window
                 (bool ok, string message) = GameCompatibilityInspector.CheckHash(hash);
                 if (!ok)
                 {
-                    // The XEX is not a supported version. Instead of bailing out
-                    // with a message box, show the reason on the overlay and let
-                    // the user choose to extract the disc anyways (keeping the
-                    // XEX) or stop.
                     var decision = new TaskCompletionSource<bool>(
                         TaskCreationOptions.RunContinuationsAsynchronously);
                     _hashDecision = decision;
@@ -590,16 +1051,12 @@ public partial class MainWindow : Window
                         _hashDecision = null;
                     if (!extractAnyways)
                     {
-                        // Declined: remove the temporary XEX, leaving any existing
-                        // default.xex in the launcher folder untouched.
                         try { File.Delete(xexNew); }
                         catch { /* best effort */ }
                         throw new ExtractionCancelledException();
                     }
                 }
 
-                // Promote the temporary XEX to default.xex (overwriting any
-                // existing one) now that the extraction will continue.
                 try
                 {
                     File.Move(xexNew, Path.Combine(outDir, "default.xex"), overwrite: true);
@@ -627,7 +1084,7 @@ public partial class MainWindow : Window
                 _extracting = false;
                 _stopRequested = false;
                 ExtractButton.IsEnabled = true;
-                LaunchButton.IsEnabled = true;
+                LaunchButton.IsEnabled = _gameReady;
                 if (cancelled)
                 {
                     ExtractionOverlay.Visibility = Visibility.Collapsed;
@@ -652,8 +1109,6 @@ public partial class MainWindow : Window
                 ExtractionStatusText.Visibility = Visibility.Visible;
                 ExtractionStatusText.Text =
                     $"Извлечено файлов: {files:N0} ({DiscExtraction.FormatSize(bytes)}) из {Path.GetFileName(isoPath)}.";
-                // SetGameDirectory reports readiness (including whether fable_2.exe
-                // is staged) in the status line and configuration badge.
                 SetGameDirectory(outDir);
                 HideOverlayAfter(900);
                 ApplyLocalizedTexts();
@@ -675,15 +1130,8 @@ public partial class MainWindow : Window
         ApplyLocalizedTexts();
     }
 
-    // The large "Cancel" button on the "unrecognized XEX" prompt: declines the
-    // extraction (same as the top Stop button while the prompt is showing).
-    private void CancelClicked(object sender, RoutedEventArgs e)
-    {
-        DeclineHashDecision();
-    }
+    private void CancelClicked(object sender, RoutedEventArgs e) => DeclineHashDecision();
 
-    // Decline the "unrecognized XEX" prompt: the worker deletes the XEX and
-    // reports the extraction as stopped.
     private void DeclineHashDecision()
     {
         if (_hashDecision is null) return;
@@ -691,7 +1139,6 @@ public partial class MainWindow : Window
         StopButton.IsEnabled = false;
         HashPrompt.Visibility = Visibility.Collapsed;
         ExtractionPhaseText.Text = "Остановка…";
-        ApplyLocalizedTexts();
         ApplyLocalizedTexts();
     }
 
@@ -704,14 +1151,12 @@ public partial class MainWindow : Window
         ApplyLocalizedTexts();
     }
 
-    // Show the "unrecognized XEX" prompt on the overlay (called on the UI
-    // thread via Dispatcher.Invoke from the worker).
     private void ShowHashPrompt(string message)
     {
         HashPromptText.Text = message;
         ExtractionPhaseText.Text = "Неизвестный default.xex";
         ApplyLocalizedTexts();
-        StopButton.IsEnabled = true;   // the user can still abort
+        StopButton.IsEnabled = true;
         HashPrompt.Visibility = Visibility.Visible;
     }
 
@@ -726,10 +1171,11 @@ public partial class MainWindow : Window
                 Content = item.Name,
                 IsChecked = false,
                 IsHitTestVisible = false,   // display-only progress checkbox
-                FontSize = 14,
+                FontSize = 17,
+                Width = 300,
                 FontWeight = item.IsDirectory ? FontWeights.SemiBold : FontWeights.Normal,
-                Foreground = ItemBrush,
-                Margin = new Thickness(0, 3, 0, 3),
+                Foreground = LightBrush,
+                Margin = new Thickness(0, 4, 12, 4),
                 VerticalContentAlignment = VerticalAlignment.Center
             };
             ExtractionFolderList.Children.Add(box);
@@ -782,101 +1228,130 @@ public partial class MainWindow : Window
         timer.Tick += (_, _) =>
         {
             timer.Stop();
-            if (!_extracting)   // a new extraction may have started in the meantime
-                ExtractionOverlay.Visibility = Visibility.Collapsed;
+            if (!_extracting) ExtractionOverlay.Visibility = Visibility.Collapsed;
         };
         timer.Start();
     }
 
-    private void SaveClicked(object sender, RoutedEventArgs e) => SaveConfiguration();
-    private void LaunchClicked(object sender, RoutedEventArgs e) => LaunchGame();
-
-    // ---- Advanced Options page ----
-
     private string AdvancedConfigPath() =>
         Path.Combine(_executableDirectory ?? AppContext.BaseDirectory, "fable2_config.toml");
 
-    private void SetPage(bool advanced)
+    // ------------------------------------------------------ controller mode
+
+    private ControllerPromptMode SelectedControllerMode() => SelectedTag(ControllerModeCombo) switch
     {
-        MainContent.Visibility = advanced ? Visibility.Collapsed : Visibility.Visible;
-        AdvancedContent.Visibility = advanced ? Visibility.Visible : Visibility.Collapsed;
-        MainFooter.Visibility = advanced ? Visibility.Collapsed : Visibility.Visible;
-        AdvancedFooter.Visibility = advanced ? Visibility.Visible : Visibility.Collapsed;
-        AdvancedOptionsButton.Visibility = advanced ? Visibility.Collapsed : Visibility.Visible;
+        "playstation" => ControllerPromptMode.PlayStation,
+        "keyboard" => ControllerPromptMode.KeyboardMouse,
+        _ => ControllerPromptMode.Xbox360,
+    };
+
+    private void ControllerModeChanged(object sender, SelectionChangedEventArgs e)
+    {
+        UpdateControllerModeUi();
+        if (_loading) return;
+        UpdateDirty();
     }
 
-    private void AdvancedOptionsClicked(object sender, RoutedEventArgs e)
+    private void UpdateControllerModeUi()
     {
-        try { LoadAdvanced(); SetPage(true); }
-        catch (Exception exception)
+        if (PsPromptsCheck is null || XboxPromptsCheck is null) return;
+        ControllerPromptMode mode = SelectedControllerMode();
+        PsPromptsCheck.IsChecked = mode == ControllerPromptMode.PlayStation;
+        XboxPromptsCheck.IsChecked = mode == ControllerPromptMode.Xbox360;
+        ControllerModeHelpText.Text = mode switch
         {
-            MessageBox.Show(this, L(exception.Message), L("Не удалось прочитать расширенные настройки"),
-                MessageBoxButton.OK, MessageBoxImage.Error);
-        }
-    }
-
-    private void BackClicked(object sender, RoutedEventArgs e) => SetPage(false);
-
-    private void LoadAdvanced()
-    {
-        _advanced = Fable2ConfigFile.Read(AdvancedConfigPath());
-        _loading = true;
-        try
-        {
-            MouseLookCheck.IsChecked = _advanced.MouseLook;
-            MouseSensitivitySlider.Value = _advanced.MouseLookScale;
-            MouseSensitivityBox.Text = _advanced.MouseLookScale.ToString(CultureInfo.InvariantCulture);
-            HotFuncYieldSlider.Value = Math.Clamp(_advanced.HotFuncYieldEvery, 0, 16);
-            HotFuncYieldBox.Text = _advanced.HotFuncYieldEvery.ToString(CultureInfo.InvariantCulture);
-            BuildKeybindRows(Fable2ConfigFile.ParseKeybinds(_advanced.KeyboardGamepadMap));
-            BuildPatchRows();
-        }
-        finally { _loading = false; }
-        AdvancedStatusText.Text = "Редактируется fable2_config.toml (изменения не сохранены)";
+            ControllerPromptMode.PlayStation =>
+                "Сейчас выбраны значки PlayStation: ✕ ○ □ △ и L1/L2/R1/R2. Внутренняя раскладка Xbox остаётся прежней.",
+            ControllerPromptMode.KeyboardMouse =>
+                "Сейчас выбраны значки Клавиатура/Мышь: круглые значки берутся из назначений клавиш.",
+            _ => "Сейчас выбраны оригинальные значки Xbox 360.",
+        };
         ApplyLocalizedTexts();
     }
 
-    // Build one "press-to-capture host key -> guest input" row in the KeybindList.
-    private void AddKeybindRow(string key, string button)
+    private void PsPromptsClicked(object sender, RoutedEventArgs e)
     {
-        var grid = new Grid { Margin = new Thickness(0, 0, 0, 6) };
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(12) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        SelectByTag(ControllerModeCombo, PsPromptsCheck.IsChecked == true ? "playstation" : "xbox");
+        UpdateControllerModeUi();
+    }
 
-        // Press-to-capture host key field: click it, then press the key or mouse
-        // button you want to bind (Escape cancels the capture).
-        var capture = new KeyCaptureField { Value = key };
-        var keyField = new Border
+    private void XboxPromptsClicked(object sender, RoutedEventArgs e)
+    {
+        // Turning Xbox prompts "off" has no single meaning; pick PS or K/M instead.
+        if (XboxPromptsCheck.IsChecked == true) SelectByTag(ControllerModeCombo, "xbox");
+        UpdateControllerModeUi();
+    }
+
+    private void RefreshPromptResourceText()
+    {
+        if (PromptResourceText is null || _gameDirectory is null) return;
+        string bank = Path.Combine(_gameDirectory, DualShockPromptPatcher.RelativeBankPath.Replace('/', Path.DirectorySeparatorChar));
+        string header = Path.Combine(_gameDirectory, DualShockPromptPatcher.RelativeHeaderBankPath.Replace('/', Path.DirectorySeparatorChar));
+        bool found = File.Exists(bank) && File.Exists(header);
+        bool backup = File.Exists(bank + DualShockPromptPatcher.BackupSuffix) &&
+                      File.Exists(header + DualShockPromptPatcher.BackupSuffix);
+        PromptResourceText.Text = !found
+            ? "Файлы подсказок не найдены — проверьте папку игры"
+            : backup
+                ? "Оригинальные подсказки найдены · Резервная копия доступна"
+                : "Оригинальные подсказки найдены · Резервная копия будет создана при первой замене";
+        PromptResourceText.Foreground = found ? LightBrush : DangerBrush;
+        ApplyLocalizedTexts();
+    }
+
+    // -------------------------------------------------------------- keybinds
+
+    private void BuildKeybindRows(List<KeybindEntry> entries)
+    {
+        _keyRows.Clear();
+        _activeKeyRow = null;
+        foreach (KeybindEntry entry in entries)
+            _keyRows.Add(CreateKeybindRow(entry.Key, entry.Button));
+        LayoutKeybindRows();
+    }
+
+    /// <summary>Fills the left column first, then the right one (as in the design).</summary>
+    private void LayoutKeybindRows()
+    {
+        KeybindListLeft.Children.Clear();
+        KeybindListRight.Children.Clear();
+        int half = (_keyRows.Count + 1) / 2;
+        for (int i = 0; i < _keyRows.Count; i++)
+            (i < half ? KeybindListLeft : KeybindListRight).Children.Add(_keyRows[i].Root);
+    }
+
+    private KeybindRow CreateKeybindRow(string key, string button)
+    {
+        var row = new KeybindRow { Key = key };
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(190) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(40) });
+
+        row.KeyText = new TextBlock
         {
-            Background = KeyIdleBackground,
-            BorderBrush = KeyIdleBorder,
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(4),
-            MinHeight = 38,
-            Padding = new Thickness(10, 4, 10, 4),
-            Cursor = Cursors.Hand,
-            SnapsToDevicePixels = true,
-            Tag = capture,
-        };
-        capture.Border = keyField;
-        capture.Text = new TextBlock
-        {
-            Text = string.IsNullOrWhiteSpace(key) ? "нажмите клавишу…" : key,
-            Foreground = KeyFieldText,
-            HorizontalAlignment = HorizontalAlignment.Center,
+            FontSize = 18,
+            FontWeight = FontWeights.Bold,
+            Foreground = LightBrush,
             VerticalAlignment = VerticalAlignment.Center,
-            FontSize = 14,
         };
-        keyField.Child = capture.Text;
-        // A single MouseDown handler captures every mouse button via
-        // e.ChangedButton (WPF doesn't expose per-button routed events for the
-        // middle and X buttons on a plain Border). The first LMB press enters
-        // listening mode; any press while listening sets that button as the key.
-        keyField.MouseDown += (s, e) =>
+        row.KeyField = new Border
         {
-            string? button = e.ChangedButton switch
+            Background = Brushes.Transparent,
+            BorderBrush = Brushes.Transparent,
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(3),
+            Padding = new Thickness(10, 0, 8, 0),
+            Margin = new Thickness(0, 0, 8, 0),
+            Cursor = Cursors.Hand,
+            Child = row.KeyText,
+            ToolTip = "Кликните, затем нажмите клавишу или кнопку мыши",
+        };
+        SetKeyText(row);
+        // First LMB click starts listening; while listening any mouse button sets it.
+        row.KeyField.MouseDown += (_, e) =>
+        {
+            string? mouse = e.ChangedButton switch
             {
                 MouseButton.Left => "LMB",
                 MouseButton.Right => "RMB",
@@ -885,84 +1360,115 @@ public partial class MainWindow : Window
                 MouseButton.XButton2 => "XMB2",
                 _ => null
             };
-            if (button == null) return;
-
-            if (button == "LMB" && !ReferenceEquals(_activeKeyField, keyField))
+            if (mouse is null) return;
+            e.Handled = true;
+            if (mouse == "LMB" && !ReferenceEquals(_activeKeyRow, row))
             {
-                BeginKeyCapture(keyField);   // first LMB click enters listening mode
+                BeginKeyCapture(row);
                 return;
             }
-            if (ReferenceEquals(_activeKeyField, keyField))
-                SetKeyCaptureValue(keyField, button);
+            if (ReferenceEquals(_activeKeyRow, row))
+                SetKeyCaptureValue(row, mouse);
         };
 
-
-        var buttonCombo = BuildKeyCombo(Fable2ConfigFile.ButtonNames, button);
-
-        var removeButton = new Button
+        row.ButtonCombo = new ComboBox { Style = (Style)FindResource("InlineCombo") };
+        foreach (string name in Fable2ConfigFile.ButtonNames)
+            row.ButtonCombo.Items.Add(new ComboBoxItem { Content = name, Tag = name });
+        row.ButtonCombo.SelectedItem = FindTag(row.ButtonCombo, button) ?? row.ButtonCombo.Items[0];
+        row.ButtonCombo.SelectionChanged += (_, _) =>
         {
-            Content = "✕",
-            MinWidth = 30,
+            if (_loading) return;
+            UpdateDirty();
+        };
+
+        var remove = new Button
+        {
+            Content = "×",
+            Style = (Style)FindResource("LinkButton"),
+            FontSize = 22,
+            Foreground = MutedBrush,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
             ToolTip = "Удалить это назначение",
-            Style = (Style)FindResource("SecondaryButton"),
         };
-        removeButton.Click += (s, e) =>
+        remove.Click += (_, _) =>
         {
-            KeybindList.Children.Remove(grid);
-            _keyFields.Remove(keyField);
-            _buttonCombos.Remove(buttonCombo);
-            if (ReferenceEquals(_activeKeyField, keyField)) _activeKeyField = null;
+            if (ReferenceEquals(_activeKeyRow, row)) _activeKeyRow = null;
+            _keyRows.Remove(row);
+            LayoutKeybindRows();
+            RefreshMouseButtonCombos();
+            UpdateDirty();
         };
 
-        Grid.SetColumn(keyField, 0);
-        Grid.SetColumn(buttonCombo, 2);
-        Grid.SetColumn(removeButton, 3);
-        grid.Children.Add(keyField);
-        grid.Children.Add(buttonCombo);
-        grid.Children.Add(removeButton);
+        Grid.SetColumn(row.KeyField, 0);
+        Grid.SetColumn(row.ButtonCombo, 1);
+        Grid.SetColumn(remove, 2);
+        grid.Children.Add(row.KeyField);
+        grid.Children.Add(row.ButtonCombo);
+        grid.Children.Add(remove);
 
-        KeybindList.Children.Add(grid);
-        _keyFields.Add(keyField);
-        _buttonCombos.Add(buttonCombo);
+        row.Root = new Border
+        {
+            Background = RowBackground,
+            BorderBrush = RowBorder,
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(3),
+            Padding = new Thickness(2),
+            Margin = new Thickness(0, 0, 0, 7),
+            Child = grid,
+        };
+        return row;
     }
 
-    // Enter listening mode on the host key field: the next key or mouse button
-    // press sets the binding. Only one field listens at a time.
-    private void BeginKeyCapture(Border field)
+    private void SetKeyText(KeybindRow row)
     {
-        if (_activeKeyField != null && _activeKeyField != field) SetKeyCaptureIdle(_activeKeyField);
-        _activeKeyField = field;
-        field.Background = KeyListeningBackground;
-        field.BorderBrush = KeyListeningBorder;
-        var capture = (KeyCaptureField)field.Tag!;
-        capture.Text.Text = "ожидание ввода…";
-        capture.Text.Foreground = KeyFieldText;
+        row.KeyText.Text = string.IsNullOrWhiteSpace(row.Key) ? "нажмите клавишу…" : row.Key;
+        row.KeyText.Foreground = string.IsNullOrWhiteSpace(row.Key) ? MutedBrush : LightBrush;
+    }
+
+    private static ComboBoxItem? FindTag(ComboBox combo, string tag)
+    {
+        foreach (object item in combo.Items)
+            if (item is ComboBoxItem comboItem &&
+                string.Equals(comboItem.Tag?.ToString(), tag, StringComparison.OrdinalIgnoreCase))
+                return comboItem;
+        return null;
+    }
+
+    private void BeginKeyCapture(KeybindRow row)
+    {
+        CancelKeyCapture();
+        _activeKeyRow = row;
+        row.KeyField.Background = RowListening;
+        row.KeyField.BorderBrush = RowListeningBorder;
+        row.KeyText.Text = "ожидание ввода…";
+        row.KeyText.Foreground = GoldTextBrush;
         ApplyLocalizedTexts();
     }
 
-    private void SetKeyCaptureValue(Border field, string name)
+    private void CancelKeyCapture()
     {
-        var capture = (KeyCaptureField)field.Tag!;
-        capture.Value = name;
-        capture.Text.Text = name;
-        capture.Text.Foreground = KeyFieldText;
-        field.Background = KeyIdleBackground;
-        field.BorderBrush = KeyIdleBorder;
-        _activeKeyField = null;
-    }
-
-    private void SetKeyCaptureIdle(Border field)
-    {
-        var capture = (KeyCaptureField)field.Tag!;
-        capture.Text.Text = string.IsNullOrWhiteSpace(capture.Value) ? "нажмите клавишу…" : capture.Value;
-        capture.Text.Foreground = KeyFieldText;
-        field.Background = KeyIdleBackground;
-        field.BorderBrush = KeyIdleBorder;
+        if (_activeKeyRow is null) return;
+        KeybindRow row = _activeKeyRow;
+        _activeKeyRow = null;
+        row.KeyField.Background = Brushes.Transparent;
+        row.KeyField.BorderBrush = Brushes.Transparent;
+        SetKeyText(row);
         ApplyLocalizedTexts();
     }
 
-    // Map a WPF Key to the host-key name rex::ui::ParseVirtualKey expects (see
-    // Fable2ConfigFile.KeyNames). Returns null for keys that cannot be bound.
+    private void SetKeyCaptureValue(KeybindRow row, string name)
+    {
+        row.Key = name;
+        _activeKeyRow = null;
+        row.KeyField.Background = Brushes.Transparent;
+        row.KeyField.BorderBrush = Brushes.Transparent;
+        SetKeyText(row);
+        RefreshMouseButtonCombos();
+        UpdateDirty();
+    }
+
+    // Map a WPF Key to the host-key name rex::ui::ParseVirtualKey expects.
     private static string? KeyToName(Key key)
     {
         if (key >= Key.A && key <= Key.Z) return ((char)('A' + (key - Key.A))).ToString();
@@ -1017,11 +1523,19 @@ public partial class MainWindow : Window
 
     private void MainWindow_PreviewKeyDown(object sender, KeyEventArgs e)
     {
-        if (_activeKeyField == null) return;
+        if (_activeKeyRow is null)
+        {
+            if (e.Key == Key.Escape)
+            {
+                if (AchievementsPage.Visibility == Visibility.Visible) { CloseAchievements(); e.Handled = true; }
+                else if (UnsavedOverlay.Visibility == Visibility.Visible) { UnsavedCancelClicked(this, e); e.Handled = true; }
+                else if (WhatsNewOverlay.Visibility == Visibility.Visible) { WhatsNewOverlay.Visibility = Visibility.Collapsed; e.Handled = true; }
+            }
+            return;
+        }
         if (e.Key == Key.Escape)
         {
-            SetKeyCaptureIdle(_activeKeyField);
-            _activeKeyField = null;
+            CancelKeyCapture();
             e.Handled = true;
             return;
         }
@@ -1029,275 +1543,92 @@ public partial class MainWindow : Window
         string? name = KeyToName(key);
         if (name != null)
         {
-            SetKeyCaptureValue(_activeKeyField, name);
+            SetKeyCaptureValue(_activeKeyRow, name);
             e.Handled = true;
         }
     }
 
-    private static ComboBox BuildKeyCombo(string[] names, string selected)
-    {
-        var combo = new ComboBox();
-        foreach (string name in names)
-            combo.Items.Add(new ComboBoxItem { Content = name, Tag = name });
-        combo.SelectedItem = FindTag(combo, selected) ?? combo.Items[0] as ComboBoxItem;
-        return combo;
-    }
-
-    private static ComboBoxItem? FindTag(ComboBox combo, string tag)
-    {
-        foreach (object item in combo.Items)
-            if (item is ComboBoxItem comboItem &&
-                string.Equals(comboItem.Tag?.ToString(), tag, StringComparison.OrdinalIgnoreCase))
-                return comboItem;
-        return null;
-    }
-
-    private void BuildKeybindRows(List<KeybindEntry> entries)
-    {
-        KeybindList.Children.Clear();
-        _keyFields.Clear();
-        _buttonCombos.Clear();
-        _activeKeyField = null;
-        foreach (KeybindEntry entry in entries)
-            AddKeybindRow(entry.Key, entry.Button);
-    }
-
     private void AddKeybindClicked(object sender, RoutedEventArgs e)
     {
-        AddKeybindRow("", Fable2ConfigFile.ButtonNames[0]);
-        ApplyLocalizedTexts();
+        KeybindRow row = CreateKeybindRow("", Fable2ConfigFile.ButtonNames[0]);
+        _keyRows.Add(row);
+        LayoutKeybindRows();
+        BeginKeyCapture(row);
+        row.Root.BringIntoView();
+        UpdateDirty();
     }
 
-    // Restore the built-in default keyboard -> gamepad map (rebuilds the rows
-    // from the C++ default). The user still has to press Save to persist it.
+    // Restore the built-in default map. Save still has to be pressed.
     private void ResetKeybindsClicked(object sender, RoutedEventArgs e)
     {
         BuildKeybindRows(Fable2ConfigFile.ParseKeybinds(Fable2ConfigValues.DefaultKeyboardGamepadMap));
+        RefreshMouseButtonCombos();
+        UpdateDirty();
         ApplyLocalizedTexts();
     }
 
     private string CollectKeybinds()
     {
         var entries = new List<KeybindEntry>();
-        for (int i = 0; i < _keyFields.Count; i++)
+        foreach (KeybindRow row in _keyRows)
         {
-            string key = ((KeyCaptureField)_keyFields[i].Tag!).Value;
-            string button = (_buttonCombos[i].SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "";
-            if (!string.IsNullOrWhiteSpace(key) || !string.IsNullOrWhiteSpace(button))
-                entries.Add(new KeybindEntry { Key = key, Button = button });
+            string button = (row.ButtonCombo.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "";
+            if (!string.IsNullOrWhiteSpace(row.Key) || !string.IsNullOrWhiteSpace(button))
+                entries.Add(new KeybindEntry { Key = row.Key, Button = button });
         }
         return Fable2ConfigFile.BuildKeybinds(entries);
     }
 
-    // Build one "checkbox + label + description" row in the PatchList.
-    private void AddPatchRow(string name, string key, string description, bool value,
-        bool unstable = false, Action? onChecked = null, Action? onUnchecked = null)
+    // ---- mouse button shortcuts: edit the LMB / MMB / RMB keybind rows
+
+    private void RefreshMouseButtonCombos()
     {
-        var grid = new Grid();
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-
-        var labelStack = new StackPanel();
-        var nameBlock = new TextBlock
+        if (MouseLmbCombo is null) return;
+        _syncingMouseCombos = true;
+        try
         {
-            Text = unstable ? name + "  (нестабильно)" : name,
-            FontWeight = FontWeights.SemiBold,
-        };
-        if (unstable) nameBlock.Foreground = UnstableBrush;
-        labelStack.Children.Add(nameBlock);
-        labelStack.Children.Add(new TextBlock
-        {
-            Text = description,
-            FontSize = 12,
-            Foreground = MutedBrush,
-            TextWrapping = TextWrapping.Wrap,
-            Margin = new Thickness(0, 2, 0, 0),
-        });
-
-        var check = new CheckBox
-        {
-            IsChecked = value,
-            VerticalAlignment = VerticalAlignment.Top,
-            Margin = new Thickness(10, 0, 0, 0),
-        };
-        if (onChecked != null) check.Checked += (s, e) => onChecked();
-        if (onUnchecked != null) check.Unchecked += (s, e) => onUnchecked();
-
-        Grid.SetColumn(labelStack, 0);
-        Grid.SetColumn(check, 1);
-        grid.Children.Add(labelStack);
-        grid.Children.Add(check);
-
-        var border = new Border
-        {
-            // Reddish tint for unstable patches, subtle green for the rest.
-            Background = unstable
-                ? new SolidColorBrush(Color.FromArgb(0x26, 0x4A, 0x2C, 0x2C))
-                : new SolidColorBrush(Color.FromArgb(0x22, 0x2F, 0x49, 0x41)),
-            CornerRadius = new CornerRadius(8),
-            Padding = new Thickness(14, 10, 14, 10),
-            Margin = new Thickness(0, 0, 0, 10),
-            Child = grid,
-        };
-        PatchList.Children.Add(border);
-        _patchChecks.Add((key, check));
-    }
-
-    // Set a patch checkbox by key (used to satisfy the higher_hf_tick_rate ->
-    // high_tick_rate requirement).
-    private void SetPatchChecked(string key, bool isChecked)
-    {
-        foreach (var (k, check) in _patchChecks)
-            if (k == key) { check.IsChecked = isChecked; return; }
-    }
-
-    private void BuildPatchRows()
-    {
-        PatchList.Children.Clear();
-        _patchChecks.Clear();
-        AddPatchRow("Разблокировать предметы с сайта", "unlock_website",
-            "Принудительно выдаёт предметы, которые раньше получались через сайт Fable 2, при загрузке сохранения.", _advanced.UnlockWebsite);
-        AddPatchRow("Разблокировать коллекционное издание", "unlock_ce",
-            "Принудительно выдаёт содержимое сундука коллекционного издания при загрузке сохранения.", _advanced.UnlockCe);
-        AddPatchRow("Пропускать вступительные ролики", "skip_intro_videos",
-            "Пропускает ролики с логотипами Microsoft и Lionhead при запуске.", _advanced.SkipIntroVideos);
-        AddPatchRow("Повышенная частота тиков", "high_tick_rate",
-            "Увеличивает частоту LF-тиков с 15 до 30 Гц (режим Xenia \"High Tick Rate\").",
-            _advanced.HighTickRate, unstable: true,
-            onUnchecked: () => SetPatchChecked("higher_hf_tick_rate", false));
-        AddPatchRow("Повышенная частота HF-тиков", "higher_hf_tick_rate",
-            "Увеличивает частоту HF-тиков с 30 до 60 Гц (режим Xenia \"Higher HF Tick Rate\"). Требует включённого режима «Повышенная частота тиков».",
-            _advanced.HigherHfTickRate, unstable: true,
-            onChecked: () => SetPatchChecked("high_tick_rate", true));
-        AddPatchRow("Отключить размытие в движении", "disable_motion_blur",
-            "Полностью отключает полноэкранное размытие при движении камеры.", _advanced.DisableMotionBlur);
-        AddTextureModeRow();
-        AddDualShockRow();
-    }
-
-    private void AddDualShockRow()
-    {
-        _dualShockCheck = new CheckBox
-        {
-            IsChecked = LauncherState.LoadDualShockEnabled(),
-            VerticalAlignment = VerticalAlignment.Top,
-            Margin = new Thickness(10, 0, 0, 0),
-        };
-
-        var text = new StackPanel();
-        text.Children.Add(new TextBlock
-        {
-            Text = "Использовать геймпад DualShock",
-            FontWeight = FontWeights.SemiBold,
-        });
-        text.Children.Add(new TextBlock
-        {
-            Text = "Переключает экранные подсказки на стиль PlayStation во всех поддержанных GUI-путях: A→✕, B→○, X→□, Y→△, LB→L1, RB→R1, LT→L2, RT→R2. Включает отдельный атлас меню (Принять/Назад/Отмена) и HUD. Внутренняя логика игры остаётся Xbox-совместимой.",
-            FontSize = 12,
-            Foreground = MutedBrush,
-            TextWrapping = TextWrapping.Wrap,
-            Margin = new Thickness(0, 2, 0, 0),
-        });
-        text.Children.Add(new TextBlock
-        {
-            Text = "При первом запуске создаётся резервная копия data\\art\\gui\\gui_textures.bnk.xbox-prompts-backup. Снятие галочки и следующий запуск восстанавливают исходные иконки.",
-            FontSize = 11,
-            Foreground = MutedBrush,
-            TextWrapping = TextWrapping.Wrap,
-            Margin = new Thickness(0, 6, 0, 0),
-        });
-
-        var grid = new Grid();
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        Grid.SetColumn(text, 0);
-        Grid.SetColumn(_dualShockCheck, 1);
-        grid.Children.Add(text);
-        grid.Children.Add(_dualShockCheck);
-
-        PatchList.Children.Add(new Border
-        {
-            Child = grid,
-            CornerRadius = new CornerRadius(8),
-            Padding = new Thickness(14, 10, 14, 10),
-            Margin = new Thickness(0, 0, 0, 10),
-            Background = new SolidColorBrush(Color.FromArgb(0x22, 0x2F, 0x49, 0x41)),
-        });
-    }
-
-    private void AddTextureModeRow()
-    {
-        var stack = new StackPanel();
-        stack.Children.Add(new TextBlock { Text = "Текстуры героя и собаки", FontWeight = FontWeights.SemiBold });
-        _textureModeCombo = new ComboBox { Margin = new Thickness(0, 8, 0, 8) };
-        _textureModeCombo.Items.Add(new ComboBoxItem { Tag = HeroDogTextureMode.GpuRealtime, Content = "Морфинг на GPU в реальном времени" });
-        _textureModeCombo.Items.Add(new ComboBoxItem { Tag = HeroDogTextureMode.CompatibilityReadback, Content = "Совместимый Readback — альтернативный режим" });
-        _textureModeCombo.Items.Add(new ComboBoxItem { Tag = HeroDogTextureMode.DiagnosticOff, Content = "Отключено — только диагностика (возможны чёрные текстуры)" });
-        _textureModeCombo.SelectedIndex = (int)TextureModeSettings.Get(_advanced);
-        _textureModeHelp = new TextBlock { TextWrapping = TextWrapping.Wrap, FontSize = 12, Margin = new Thickness(0, 0, 0, 8) };
-        _textureInputSummary = new TextBlock { TextWrapping = TextWrapping.Wrap, FontSize = 11, Foreground = MutedBrush };
-        _readbackOverride = new CheckBox
-        {
-            Content = new TextBlock { Text = "Для этого запуска принудительно задать адрес Readback текстур героя/собаки (переопределяет конфигурацию SDK и переменные среды только для этого параметра).",
-                TextWrapping = TextWrapping.Wrap },
-            IsChecked = false, Margin = new Thickness(0, 8, 0, 8)
-        };
-        _textureModeCombo.SelectionChanged += (_, _) => UpdateTextureModeHelp();
-        stack.Children.Add(_textureModeCombo); stack.Children.Add(_textureModeHelp);
-        stack.Children.Add(_readbackOverride); stack.Children.Add(_textureInputSummary);
-        PatchList.Children.Add(new Border { Child = stack, CornerRadius = new CornerRadius(8),
-            Padding = new Thickness(14), Margin = new Thickness(0, 0, 0, 10),
-            Background = new SolidColorBrush(Color.FromArgb(0x22, 0x2F, 0x49, 0x41)) });
-        UpdateTextureModeHelp();
-    }
-
-    private HeroDogTextureMode SelectedTextureMode() =>
-        (_textureModeCombo?.SelectedItem as ComboBoxItem)?.Tag is HeroDogTextureMode mode
-            ? mode : TextureModeSettings.Get(_advanced);
-
-    private void UpdateTextureModeHelp()
-    {
-        if (_textureModeHelp is null || _readbackOverride is null) return;
-        var mode = SelectedTextureMode();
-        _textureModeHelp.Text = mode switch
-        {
-            HeroDogTextureMode.GpuRealtime => "Использует существующий GPU-перехват морфинга. При сохранении старый переключатель Readback отключается. Стабильность всё равно зависит от игры и среды выполнения.",
-            HeroDogTextureMode.CompatibilityReadback => "Отключает принудительный GPU-морфинг и включает выборочное чтение результата через CPU. Это альтернативный режим, а не гарантированное исправление вылетов. Сохраните настройки и перезапустите игру.",
-            _ => "ВНИМАНИЕ: оба исправления текстур будут отключены. Герой и собака могут снова стать чёрными. Используйте только для контролируемой диагностики."
-        };
-        _textureModeHelp.Foreground = mode == HeroDogTextureMode.DiagnosticOff ? UnstableBrush : MutedBrush;
-        _readbackOverride.IsEnabled = mode == HeroDogTextureMode.CompatibilityReadback;
-        if (!_readbackOverride.IsEnabled) _readbackOverride.IsChecked = false;
-        if (_textureInputSummary is not null)
-        {
-            try { _textureInputSummary.Text = "Загруженные / последние сохранённые настройки (сохраните, чтобы применить новый выбор):\n" + TextureModeSettings.DescribeRequest(_executableDirectory ?? AppContext.BaseDirectory, _advanced); }
-            catch (Exception e) { _textureInputSummary.Text = "Не удалось проверить настройки SDK: " + e.Message; }
-        }
-    }
-
-    private void CollectPatches()
-    {
-        foreach (var (key, check) in _patchChecks)
-        {
-            bool value = check.IsChecked == true;
-            switch (key)
+            foreach (ComboBox combo in new[] { MouseLmbCombo, MouseMmbCombo, MouseRmbCombo })
             {
-                case "unlock_website": _advanced.UnlockWebsite = value; break;
-                case "unlock_ce": _advanced.UnlockCe = value; break;
-                case "skip_intro_videos": _advanced.SkipIntroVideos = value; break;
-                case "high_tick_rate": _advanced.HighTickRate = value; break;
-                case "higher_hf_tick_rate": _advanced.HigherHfTickRate = value; break;
-                case "disable_motion_blur": _advanced.DisableMotionBlur = value; break;
-                case "realtime_texture_morphing": _advanced.RealtimeTextureMorphing = value; break;
-                case "hero_dog_texture_readback": _advanced.HeroDogTextureReadback = value; break;
+                KeybindRow? row = _keyRows.FirstOrDefault(r =>
+                    string.Equals(r.Key, (string)combo.Tag, StringComparison.OrdinalIgnoreCase));
+                string button = row is null ? "" :
+                    (row.ButtonCombo.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "";
+                combo.SelectedItem = FindTag(combo, button) ?? combo.Items[0];
             }
         }
+        finally { _syncingMouseCombos = false; }
     }
+
+    private void MouseButtonComboChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_syncingMouseCombos || _loading || sender is not ComboBox combo) return;
+        string mouseKey = (string)combo.Tag;
+        string button = SelectedTag(combo) ?? "";
+        KeybindRow? row = _keyRows.FirstOrDefault(r =>
+            string.Equals(r.Key, mouseKey, StringComparison.OrdinalIgnoreCase));
+        if (button.Length == 0)
+        {
+            if (row is not null) { _keyRows.Remove(row); LayoutKeybindRows(); }
+        }
+        else if (row is null)
+        {
+            _keyRows.Insert(0, CreateKeybindRow(mouseKey, button));
+            LayoutKeybindRows();
+        }
+        else
+        {
+            row.ButtonCombo.SelectedItem = FindTag(row.ButtonCombo, button) ?? row.ButtonCombo.SelectedItem;
+        }
+        UpdateDirty();
+    }
+
+    // ------------------------------------------------------- mouse sensitivity
 
     private void MouseSensitivitySliderChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
         if (MouseSensitivityBox is not null)
             MouseSensitivityBox.Text = ((int)e.NewValue).ToString(CultureInfo.InvariantCulture);
+        if (!_loading) UpdateDirty();
     }
 
     private void MouseSensitivityBoxLostFocus(object sender, RoutedEventArgs e)
@@ -1313,12 +1644,16 @@ public partial class MainWindow : Window
         {
             MouseSensitivityBox.Text = ((int)MouseSensitivitySlider.Value).ToString(CultureInfo.InvariantCulture);
         }
+        if (!_loading) UpdateDirty();
     }
+
+    // ------------------------------------------------------------- HOTFUNC
 
     private void HotFuncYieldSliderChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
         if (HotFuncYieldBox is not null)
             HotFuncYieldBox.Text = ((int)e.NewValue).ToString(CultureInfo.InvariantCulture);
+        if (!_loading) UpdateDirty();
     }
 
     private void HotFuncYieldBoxLostFocus(object sender, RoutedEventArgs e)
@@ -1327,52 +1662,85 @@ public partial class MainWindow : Window
             out int value))
         {
             value = Math.Clamp(value, 0, 4096);
+            bool previous = _loading;
+            _loading = true;   // keep a typed value above 16 instead of the slider's clamp
             HotFuncYieldSlider.Value = Math.Clamp(value, 0, 16);
+            _loading = previous;
             HotFuncYieldBox.Text = value.ToString(CultureInfo.InvariantCulture);
         }
         else
         {
             HotFuncYieldBox.Text = ((int)HotFuncYieldSlider.Value).ToString(CultureInfo.InvariantCulture);
         }
+        if (!_loading) UpdateDirty();
     }
 
-    private void SaveAdvancedClicked(object sender, RoutedEventArgs e)
+    // ------------------------------------------------------- experimental
+
+    private void HighTickChanged(object sender, RoutedEventArgs e)
     {
-        if (_executableDirectory is null)
-        {
-            MessageBox.Show(this, L("Сначала выберите папку игры."), L("Игра не найдена"),
-                MessageBoxButton.OK, MessageBoxImage.Warning);
-            return;
-        }
+        if (HighTickCheck.IsChecked != true) HfTickCheck.IsChecked = false;
+        UpdateHfTickAvailability();
+        if (!_loading) UpdateDirty();
+    }
 
-        _advanced.GameSpeed = SelectedGameSpeed();
-        _advanced.MouseLook = MouseLookCheck.IsChecked == true;
-        _advanced.MouseLookScale = (int)MouseSensitivitySlider.Value;
-        _advanced.HotFuncYieldEvery = int.TryParse(HotFuncYieldBox.Text, NumberStyles.Integer,
-            CultureInfo.InvariantCulture, out int yieldEvery)
-            ? Math.Clamp(yieldEvery, 0, 4096) : (int)HotFuncYieldSlider.Value;
-        _advanced.KeyboardGamepadMap = CollectKeybinds();
-        CollectPatches();
-        var mode = SelectedTextureMode();
-        if (mode == HeroDogTextureMode.DiagnosticOff &&
-            MessageBox.Show(this, L("Отключить оба исправления текстур? Герой и собака могут отображаться чёрными."),
-                L("Только диагностический режим"), MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
-        TextureModeSettings.Apply(_advanced, mode);
+    private void UpdateHfTickAvailability()
+    {
+        if (HfTickCheck is null) return;
+        bool available = HighTickCheck.IsChecked == true;
+        HfTickCheck.IsEnabled = available;
+        HfTickHelpText.Text = available
+            ? "Нестабильно · HF-тики 30 → 60 Гц (режим Xenia «Higher HF Tick Rate»)"
+            : "Недоступно: сначала включите «Повышенная частота тиков».";
+        HfTickHelpText.Foreground = available ? DangerBrush : MutedBrush;
+        ApplyLocalizedTexts();
+    }
 
-        string path = AdvancedConfigPath();
-        try
+    // ------------------------------------------------------- texture mode
+
+    private HeroDogTextureMode SelectedTextureMode() =>
+        (TextureModeCombo.SelectedItem as ComboBoxItem)?.Tag is HeroDogTextureMode mode
+            ? mode : TextureModeSettings.Get(_advanced);
+
+    private void TextureModeChanged(object sender, SelectionChangedEventArgs e)
+    {
+        UpdateTextureModeHelp();
+        if (!_loading) UpdateDirty();
+    }
+
+    private void TechDetailsClicked(object sender, RoutedEventArgs e)
+    {
+        bool show = TextureInputSummaryText.Visibility != Visibility.Visible;
+        TextureInputSummaryText.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+        TechDetailsButton.Content = show
+            ? "ДОПОЛНИТЕЛЬНЫЕ ТЕХНИЧЕСКИЕ ПАРАМЕТРЫ  ▴"
+            : "ДОПОЛНИТЕЛЬНЫЕ ТЕХНИЧЕСКИЕ ПАРАМЕТРЫ  ▾";
+        UpdateTextureModeHelp();
+    }
+
+    private void UpdateTextureModeHelp()
+    {
+        if (TextureModeHelpText is null || ReadbackOverrideCheck is null) return;
+        HeroDogTextureMode mode = SelectedTextureMode();
+        TextureModeHelpText.Text = mode switch
         {
-            Fable2ConfigFile.Write(path, _advanced);
-            LauncherState.SaveDualShockEnabled(_dualShockCheck?.IsChecked == true);
-            AdvancedStatusText.Text = $"Сохранено: {Path.GetFileName(path)}. Перезапустите игру, чтобы применить режим.";
-            UpdateTextureModeHelp();
-            ApplyLocalizedTexts();
-        }
-        catch (Exception exception)
+            HeroDogTextureMode.GpuRealtime => "Экспериментальный GPU-режим. На текущей сборке он может затемнять изображение или нарушать отрисовку отдельных элементов интерфейса. Используйте только для проверки.",
+            HeroDogTextureMode.CompatibilityReadback => "Отключает принудительный GPU-morphing; выполняет выборочное чтение результата через CPU.",
+            _ => "Стабильный профиль v22: GPU realtime morphing и Forced Readback отключены. На отдельных сценах возможны прежние проблемы текстур героя/собаки."
+        };
+        TextureModeHelpText.Foreground = mode == HeroDogTextureMode.DiagnosticOff ? WarningBrush : MutedBrush;
+        ReadbackOverrideCheck.IsEnabled = mode == HeroDogTextureMode.CompatibilityReadback;
+        if (!ReadbackOverrideCheck.IsEnabled) ReadbackOverrideCheck.IsChecked = false;
+        if (TextureInputSummaryText.Visibility == Visibility.Visible)
         {
-            MessageBox.Show(this, L(exception.Message), L("Не удалось сохранить расширенные настройки"),
-                MessageBoxButton.OK, MessageBoxImage.Error);
+            try
+            {
+                TextureInputSummaryText.Text = L("Загруженные / последние сохранённые настройки (сохраните, чтобы применить новый выбор):") + "\n" +
+                    L(TextureModeSettings.DescribeRequest(_executableDirectory ?? AppContext.BaseDirectory, _advanced));
+            }
+            catch (Exception e) { TextureInputSummaryText.Text = L("Не удалось проверить настройки SDK: ") + e.Message; }
         }
+        ApplyLocalizedTexts();
     }
 }
 
@@ -1396,7 +1764,6 @@ internal static class LauncherState
         try
         {
             File.WriteAllText(LocalStatePath, directory);
-            return;
         }
         catch
         {

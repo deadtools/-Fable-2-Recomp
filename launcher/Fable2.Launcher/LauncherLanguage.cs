@@ -45,11 +45,11 @@ public static class LauncherLanguage
     {
         if (russian is null) return string.Empty;
         if (Normalize(language) == Russian || russian.Length == 0) return russian;
-        if (EnglishText.TryGetValue(russian, out string? exact)) return exact;
+        if (TryExact(russian, out string exact)) return exact;
         // Translate whole lines first (for multiline SDK reports), then known
         // variable-prefix fragments. Paths, version names and numeric IDs survive.
         string translated = string.Join("\n", russian.Split('\n').Select(line =>
-            EnglishText.TryGetValue(line.TrimEnd('\r'), out string? target)
+            TryExact(line.TrimEnd('\r'), out string target)
                 ? target + (line.EndsWith('\r') ? "\r" : "") : line));
         foreach (var (from, to) in Fragments)
             if (translated.Contains(from, StringComparison.Ordinal))
@@ -66,14 +66,18 @@ public static class LauncherLanguage
     private static readonly IReadOnlyDictionary<string, string> EnglishText =
         new Dictionary<string, string>(StringComparer.Ordinal)
         {
-            ["Fable II Recompiled — Лаунчер 1.6.1"] = "Fable II Recompiled — Launcher 1.6.1",
+            ["ZIP-\u0430\u0440\u0445\u0438\u0432 \u0434\u0438\u0430\u0433\u043d\u043e\u0441\u0442\u0438\u043a\u0438 \u0441\u043e\u0437\u0434\u0430\u043d"] = "Diagnostic ZIP archive created",
+            ["ZIP \u043d\u0435 \u0441\u043e\u0437\u0434\u0430\u043d; \u043f\u0430\u043f\u043a\u0430 \u043e\u0442\u0447\u0451\u0442\u0430 \u0441\u043e\u0445\u0440\u0430\u043d\u0435\u043d\u0430"] = "ZIP failed; report folder retained",
+            ["Fable II Recompiled — Лаунчер 1.6.2"] = "Fable II Recompiled — Launcher 1.6.2",
             ["ЛАУНЧЕР РЕКОМПИЛЯЦИИ"] = "RECOMPILED LAUNCHER",
             ["Версия 1.6.1"] = "Version 1.6.1",
+            ["Версия 1.6.2"] = "Version 1.6.2",
             ["ЯЗЫК"] = "LANGUAGE",
             ["Язык интерфейса"] = "Interface language",
             ["Конфигурация готова"] = "Configuration ready",
             ["Расширенные настройки"] = "Advanced options",
             ["Что нового в лаунчере 1.6.1"] = "What’s new in launcher 1.6.1",
+            ["Что нового в лаунчере 1.6.2"] = "What’s new in launcher 1.6.2",
             ["Исправлено отображение текстур героя и собаки."] = "Fixed hero and dog textures.",
             ["Добавлено переключение значков управления Xbox / PlayStation (DualShock)."] = "Added Xbox / PlayStation (DualShock) controller prompts.",
             ["Добавлена регулировка скорости игры: 0,1–2,0×, шаг 0,1; по умолчанию 1,0×."] = "Added game speed adjustment: 0.1–2.0× in steps of 0.1 (default: 1.0×).",
@@ -123,6 +127,13 @@ public static class LauncherLanguage
             ["Внутреннее: 1280 × 720"] = "Internal: 1280 × 720",
             ["На экране: 1280 × 720"] = "Output: 1280 × 720",
             ["Повышение внутреннего масштаба улучшает края геометрии и качество рендера, но заметно увеличивает расход видеопамяти."] = "Increasing internal render scale improves geometry edges and image quality, but greatly increases VRAM usage.",
+            ["Тип управления"] = "Control type",
+            ["Клавиатура/Мышь"] = "Keyboard / Mouse",
+            ["Экранные значки изменятся при следующем запуске игры."] = "On-screen icons will change the next time the game starts.",
+            ["Оригинальные кнопки Xbox 360. Сохранённые игровые назначения не меняются."] = "Original Xbox 360 buttons. Existing key bindings remain unchanged.",
+            ["Значки ✕ ○ □ △ и L1/L2/R1/R2. Внутренняя раскладка Xbox остаётся прежней."] = "PlayStation ✕ ○ □ △ and L1/L2/R1/R2 prompts. Internal Xbox mapping is unchanged.",
+            ["Круглые значки берутся из назначений ниже (например, E, ЛКМ, Tab). Изменения применятся при следующем запуске игры; удержание сохранено."] = "Circular icons use the key bindings below (e.g., E, LMB, Tab). Applied on next game launch; HOLD animation preserved.",
+            ["Добавлен режим Клавиатура/Мышь с круглыми значками назначенных клавиш."] = "Added keyboard/mouse mode with circular prompts for assigned keys.",
             ["Назначение клавиш"] = "Key bindings",
             ["КЛАВИША ПК  →  КНОПКА XBOX"] = "PC KEY  →  XBOX BUTTON",
             ["+ Добавить"] = "+ Add",
@@ -177,7 +188,15 @@ public static class LauncherLanguage
             ["При первом запуске создаётся резервная копия data\\art\\gui\\gui_textures.bnk.xbox-prompts-backup. Снятие галочки и следующий запуск восстанавливают исходные иконки."] = "A backup named data\\art\\gui\\gui_textures.bnk.xbox-prompts-backup is created on first launch. Unchecking this option restores original icons on the next launch.",
             ["Текстуры героя и собаки"] = "Hero and dog textures",
             ["Морфинг на GPU в реальном времени"] = "Realtime GPU morphing",
+            ["Морфинг на GPU в реальном времени — экспериментальный"] = "Realtime GPU morphing — experimental",
+            ["Совместимый Readback — рекомендуется"] = "Compatibility Readback — recommended",
+            ["Восстановлен прежний режим рендера: Compatibility Readback включён, GPU Realtime Morphing отключён."] = "Previous rendering mode restored: Compatibility Readback enabled, GPU Realtime Morphing disabled.",
+            ["Экспериментальный GPU-режим. На текущей сборке он может затемнять изображение или нарушать отрисовку отдельных элементов интерфейса. Используйте только для проверки."] = "Experimental GPU mode. On this build it may darken the image or break rendering of some UI elements. Use it only for testing.",
+            ["Рекомендуемый режим для этой сборки. Это прежняя рабочая схема, использовавшаяся до v13: морфинг на GPU отключён, нужная текстура выборочно читается обратно через CPU. Сохраните настройки и перезапустите игру."] = "Recommended mode for this build. This restores the previously working pre-v13 path: GPU morphing is disabled and the required texture is selectively read back through the CPU. Save settings and restart the game.",
             ["Совместимый Readback — альтернативный режим"] = "Compatibility Readback — alternate mode",
+            ["Совместимый Readback — экспериментальный fallback"] = "Compatibility Readback — experimental fallback",
+            ["Режим текстур восстановлен: GPU Realtime Morphing включён, Compatibility Readback отключён."] = "Texture mode recovered: GPU Realtime Morphing enabled, Compatibility Readback disabled.",
+            ["Настройки стабильности восстановлены"] = "Stability settings recovered",
             ["Совместимый Readback"] = "Compatibility Readback",
             ["Отключено — только диагностика (возможны чёрные текстуры)"] = "Disabled — diagnostics only (black textures possible)",
             ["Для этого запуска принудительно задать адрес Readback текстур героя/собаки (переопределяет конфигурацию SDK и переменные среды только для этого параметра)."] = "Force the hero/dog texture Readback address for this run (overrides SDK config and environment variables for this setting only).",
@@ -255,7 +274,17 @@ public static class LauncherLanguage
             ["<не задано>"] = "<not set>",
         };
 
-    private static readonly (string From, string To)[] EnglishPhrases = EnglishText
+    // 2.0.0 strings live in LauncherTextV2; they take priority over 1.6.x entries.
+    private static bool TryExact(string russian, out string english)
+    {
+        if (LauncherTextV2.English.TryGetValue(russian, out string? v2)) { english = v2; return true; }
+        if (EnglishText.TryGetValue(russian, out string? v1)) { english = v1; return true; }
+        english = russian;
+        return false;
+    }
+
+    private static readonly (string From, string To)[] EnglishPhrases = LauncherTextV2.English
+        .Concat(EnglishText.Where(pair => !LauncherTextV2.English.ContainsKey(pair.Key)))
         .Where(pair => pair.Key.Length >= 12)
         .OrderByDescending(pair => pair.Key.Length)
         .Select(pair => (pair.Key, pair.Value)).ToArray();

@@ -56,6 +56,8 @@ __pycache__/
 !tools/create_app_icon.ps1
 !assets/app-icon.png
 !docs/screenshots/launcher.png
+# Launcher artwork compiled into Fable2Launcher.exe (WPF resources).
+!launcher/Fable2.Launcher/Resources/**/*.png
 
 # --- Fetched/external toolchain deps (created by tools/setup_sdk*.cmd). -------
 # The tracked files in thirdparty/ (rexglue-sdk-local.patch,

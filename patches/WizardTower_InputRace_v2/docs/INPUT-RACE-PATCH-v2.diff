@@ -1,0 +1,229 @@
+--- a/thirdparty/rexglue-sdk/include/rex/input/input_system.h
++++ b/thirdparty/rexglue-sdk/include/rex/input/input_system.h
+@@ -11,6 +11,7 @@
+  */
+ 
+ #include <memory>
++#include <mutex>
+ #include <vector>
+ 
+ #include <rex/input/device_assignment.h>
+@@ -65,6 +66,16 @@
+   // does not renumber pad two.
+   std::vector<DeviceInfo> devices_;
+   std::vector<InputDriver*> device_owners_;
++
++  // Guest threads (GameThread, "3D Engine", ...) call the XamInput* entry
++  // points concurrently, and every one of them runs RefreshDevices(), which
++  // rebuilds devices_ / device_owners_. Without this lock two threads free the
++  // same DeviceInfo strings (heap double free in Wizard's Tower).
++  // Guards drivers_, assignment_, active_devices_, devices_, device_owners_.
++  // Recursive because driver/assignment callbacks are outside this file.
++  // Kept as the LAST member so offsets of all existing members are unchanged;
++  // instances are only created inside rexruntime (CreateDefaultInputSystem).
++  mutable std::recursive_mutex state_mutex_;
+ };
+ 
+ /// Create a default InputSystem with SDL + NOP drivers.
+--- a/thirdparty/rexglue-sdk/src/input/input_system.cpp
++++ b/thirdparty/rexglue-sdk/src/input/input_system.cpp
+@@ -11,6 +11,7 @@
+ 
+ #include <algorithm>
+ #include <cmath>
++#include <mutex>
+ 
+ #include <rex/dbg.h>
+ #include <rex/input/device_assignment.h>
+@@ -48,6 +49,7 @@
+ }
+ 
+ void InputSystem::Shutdown() {
++  std::lock_guard<std::recursive_mutex> lock(state_mutex_);
+   // device_owners_ holds raw driver pointers.
+   devices_.clear();
+   device_owners_.clear();
+@@ -55,10 +57,12 @@
+ }
+ 
+ void InputSystem::AddDriver(std::unique_ptr<InputDriver> driver) {
++  std::lock_guard<std::recursive_mutex> lock(state_mutex_);
+   drivers_.push_back(std::move(driver));
+ }
+ 
+ void InputSystem::AttachWindow(rex::ui::Window* window) {
++  std::lock_guard<std::recursive_mutex> lock(state_mutex_);
+   window_ = window;
+   for (auto& driver : drivers_) {
+     driver->OnWindowAvailable(window);
+@@ -66,18 +70,21 @@
+ }
+ 
+ void InputSystem::SetActiveCallback(std::function<bool()> callback) {
++  std::lock_guard<std::recursive_mutex> lock(state_mutex_);
+   for (auto& driver : drivers_) {
+     driver->set_is_active_callback(callback);
+   }
+ }
+ 
+ void InputSystem::SetDeviceAssignment(std::unique_ptr<DeviceAssignment> assignment) {
++  std::lock_guard<std::recursive_mutex> lock(state_mutex_);
+   assignment_ = std::move(assignment);
+   if (assignment_) {
+     assignment_->OnDevicesChanged(devices_);
+   }
+ }
+ 
++// Caller must hold state_mutex_.
+ void InputSystem::RefreshDevices() {
+   std::vector<DeviceInfo> seen;
+   std::vector<InputDriver*> owners;
+@@ -187,6 +194,7 @@
+ X_RESULT InputSystem::GetCapabilities(uint32_t user_index, uint32_t flags,
+                                       X_INPUT_CAPABILITIES* out_caps) {
+   SCOPE_profile_cpu_f("hid");
++  std::lock_guard<std::recursive_mutex> lock(state_mutex_);
+   if (!out_caps || !assignment_) {
+     return X_ERROR_DEVICE_NOT_CONNECTED;
+   }
+@@ -214,6 +222,7 @@
+ 
+ X_RESULT InputSystem::GetState(uint32_t user_index, X_INPUT_STATE* out_state) {
+   SCOPE_profile_cpu_f("hid");
++  std::lock_guard<std::recursive_mutex> lock(state_mutex_);
+   if (!assignment_) {
+     return X_ERROR_DEVICE_NOT_CONNECTED;
+   }
+@@ -253,6 +262,7 @@
+ 
+ X_RESULT InputSystem::SetState(uint32_t user_index, X_INPUT_VIBRATION* vibration) {
+   SCOPE_profile_cpu_f("hid");
++  std::lock_guard<std::recursive_mutex> lock(state_mutex_);
+   if (!assignment_) {
+     return X_ERROR_DEVICE_NOT_CONNECTED;
+   }
+@@ -295,6 +305,7 @@
+ X_RESULT InputSystem::GetKeystroke(uint32_t user_index, uint32_t flags,
+                                    X_INPUT_KEYSTROKE* out_keystroke) {
+   SCOPE_profile_cpu_f("hid");
++  std::lock_guard<std::recursive_mutex> lock(state_mutex_);
+   if (!assignment_) {
+     return X_ERROR_DEVICE_NOT_CONNECTED;
+   }
+--- a/thirdparty/rexglue-sdk/tests/unit/input/input_assignment_test.cpp
++++ b/thirdparty/rexglue-sdk/tests/unit/input/input_assignment_test.cpp
+@@ -1,8 +1,11 @@
+ #include <catch2/catch_test_macros.hpp>
+ 
++#include <atomic>
+ #include <cstdint>
+ #include <map>
+ #include <memory>
++#include <string>
++#include <thread>
+ #include <vector>
+ 
+ #include <rex/input/device_assignment.h>
+@@ -57,6 +60,19 @@
+     states_[static_cast<DeviceId>(id)] = {};
+   }
+ 
++  // Long name/guid: forces heap-allocated std::string (no SSO), like real
++  // SDL / keyboard-mouse devices. The Wizard's Tower double free is in the
++  // destruction of exactly these strings inside RefreshDevices().
++  void AddNamed(uint64_t id, bool synthetic, const std::string& name, const std::string& guid) {
++    DeviceInfo info;
++    info.id = static_cast<DeviceId>(id);
++    info.synthetic = synthetic;
++    info.name = name;
++    info.guid = guid;
++    devices_.push_back(info);
++    states_[static_cast<DeviceId>(id)] = {};
++  }
++
+   void Remove(uint64_t id) {
+     std::erase_if(devices_, [&](const DeviceInfo& d) { return d.id == static_cast<DeviceId>(id); });
+     states_.erase(static_cast<DeviceId>(id));
+@@ -236,3 +252,82 @@
+   REQUIRE(static_cast<uint16_t>(state.gamepad.buttons) == X_INPUT_GAMEPAD_B);
+   REQUIRE(system->GetState(1, &state) == X_ERROR_DEVICE_NOT_CONNECTED);
+ }
++
++// Regression: Wizard's Tower crash (0xC0000374 double free / 0xC0000005 in
++// RefreshDevices -> std::vector<DeviceInfo>::clear). The game calls
++// XamInputGetState / XamInputGetCapabilities from GameThread and from the
++// "3D Engine" thread at the same time. Without InputSystem::state_mutex_ this
++// test corrupts the heap (crash or failure); with the lock it must pass.
++TEST_CASE("Concurrent guest input calls do not corrupt device bookkeeping", "[input][threading]") {
++  FakeDriver* driver = nullptr;
++  auto system = SharedSystem(&driver);
++  driver->AddNamed(1, false, "Wireless Controller (concurrency test pad)",
++                   "030000004c050000e60c000000000000-long-guid");
++  driver->AddNamed(2, true, "Keyboard & Mouse (synthetic test device)",
++                   "synthetic-keyboard-mouse-device-guid-0001");
++  driver->SetButtons(1, X_INPUT_GAMEPAD_A);
++
++  constexpr int kIterations = 20000;
++  std::atomic<bool> go{false};
++  std::atomic<uint32_t> failures{0};
++  auto wait_go = [&]() {
++    while (!go.load(std::memory_order_acquire)) {
++      std::this_thread::yield();
++    }
++  };
++
++  std::thread game_thread([&]() {
++    wait_go();
++    for (int i = 0; i < kIterations; ++i) {
++      X_INPUT_STATE state = {};
++      if (system->GetState(0, &state) != X_ERROR_SUCCESS ||
++          static_cast<uint16_t>(state.gamepad.buttons) != X_INPUT_GAMEPAD_A) {
++        ++failures;
++      }
++    }
++  });
++  std::thread engine_thread([&]() {
++    wait_go();
++    for (int i = 0; i < kIterations; ++i) {
++      X_INPUT_STATE state = {};
++      if (system->GetState(0, &state) != X_ERROR_SUCCESS) {
++        ++failures;
++      }
++      X_INPUT_CAPABILITIES caps = {};
++      if (system->GetCapabilities(0, 0, &caps) != X_ERROR_SUCCESS) {
++        ++failures;
++      }
++    }
++  });
++  std::thread vibration_thread([&]() {
++    wait_go();
++    for (int i = 0; i < kIterations; ++i) {
++      X_INPUT_VIBRATION vibration = {};
++      if (system->SetState(0, &vibration) != X_ERROR_SUCCESS) {
++        ++failures;
++      }
++    }
++  });
++  std::thread keystroke_thread([&]() {
++    wait_go();
++    for (int i = 0; i < kIterations; ++i) {
++      X_INPUT_KEYSTROKE keystroke = {};
++      X_RESULT r = system->GetKeystroke(0, 0, &keystroke);
++      if (r != X_ERROR_EMPTY && r != X_ERROR_SUCCESS) {
++        ++failures;
++      }
++    }
++  });
++
++  go.store(true, std::memory_order_release);
++  game_thread.join();
++  engine_thread.join();
++  vibration_thread.join();
++  keystroke_thread.join();
++  REQUIRE(failures.load() == 0);
++
++  // Bookkeeping is still consistent after the storm.
++  X_INPUT_STATE state = {};
++  REQUIRE(system->GetState(0, &state) == X_ERROR_SUCCESS);
++  REQUIRE(static_cast<uint16_t>(state.gamepad.buttons) == X_INPUT_GAMEPAD_A);
++}

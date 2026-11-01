@@ -1,7 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
@@ -14,15 +16,25 @@
     <Compile Include="..\..\launcher\Fable2.Launcher\TextureModeSettings.cs" Link="TextureModeSettings.cs" />
     <Compile Include="..\..\launcher\Fable2.Launcher\LaunchDiagnostics.cs" Link="LaunchDiagnostics.cs" />
     <Compile Include="..\..\launcher\Fable2.Launcher\DualShockPromptPatcher.cs" Link="DualShockPromptPatcher.cs" />
+    <Compile Include="..\..\launcher\Fable2.Launcher\ControllerPromptSettings.cs" Link="ControllerPromptSettings.cs" />
+    <Compile Include="..\..\launcher\Fable2.Launcher\KeyboardMousePromptArtwork.cs" Link="KeyboardMousePromptArtwork.cs" />
+    <Resource Include="..\..\launcher\Fable2.Launcher\Resources\frames_elements_original.png" Link="Resources\frames_elements_original.png" />
+    <Resource Include="..\..\launcher\Fable2.Launcher\Resources\MouseButtons\LMB.png" Link="Resources\MouseButtons\LMB.png" />
+    <Resource Include="..\..\launcher\Fable2.Launcher\Resources\MouseButtons\MMB.png" Link="Resources\MouseButtons\MMB.png" />
+    <Resource Include="..\..\launcher\Fable2.Launcher\Resources\MouseButtons\RMB.png" Link="Resources\MouseButtons\RMB.png" />
     <Compile Include="..\..\launcher\Fable2.Launcher\DualShockAtlasArtwork.cs" Link="DualShockAtlasArtwork.cs" />
     <Compile Include="..\..\launcher\Fable2.Launcher\DualShockMenuBadgeArtwork.cs" Link="DualShockMenuBadgeArtwork.cs" />
     <Compile Include="..\..\launcher\Fable2.Launcher\DualShockMenuBadgePatcher.cs" Link="DualShockMenuBadgePatcher.cs" />
     <Compile Include="..\..\launcher\Fable2.Launcher\DualShockPromptArtwork.cs" Link="DualShockPromptArtwork.cs" />
     <Compile Include="..\..\launcher\Fable2.Launcher\GraphicsSettings.cs" Link="GraphicsSettings.cs" />
     <Compile Include="..\..\launcher\Fable2.Launcher\LauncherLanguage.cs" Link="LauncherLanguage.cs" />
+    <Compile Include="..\..\launcher\Fable2.Launcher\LauncherTextV2.cs" Link="LauncherTextV2.cs" />
     <Compile Include="..\..\launcher\Fable2.Launcher\LauncherConfigFile.cs" Link="LauncherConfigFile.cs" />
     <Compile Include="..\..\launcher\Fable2.Launcher\GameSpeedSettings.cs" Link="GameSpeedSettings.cs" />
     <Compile Include="..\..\launcher\Fable2.Launcher\Fable2ConfigFile.cs" Link="Fable2ConfigFile.cs" />
+    <Compile Include="..\..\launcher\Fable2.Launcher\GraphicsConfigurationTransaction.cs" Link="GraphicsConfigurationTransaction.cs" />
+    <Compile Include="..\..\launcher\Fable2.Launcher\StabilityRecovery.cs" Link="StabilityRecovery.cs" />
+    <Compile Include="..\..\launcher\Fable2.Launcher\LauncherStartupDiagnostics.cs" Link="LauncherStartupDiagnostics.cs" />
     <Compile Include="..\..\launcher\Fable2.Launcher\GameCompatibility.cs" Link="GameCompatibility.cs" />
     <Compile Include="..\..\launcher\Fable2.Launcher\GameLaunchPlan.cs" Link="GameLaunchPlan.cs" />
     <Compile Include="..\..\launcher\Fable2.Launcher\DiscExtraction.cs" Link="DiscExtraction.cs" />

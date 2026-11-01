@@ -1,0 +1,62 @@
+########## fable_2.exe.16188.dmp (cdb ~*kn, faulting thread)
+# 45  Id: 3f3c.39b4 Suspend: 0 Teb: 0000005b`0f88f000 Unfrozen "3D Engine (F80000E4)"
+ # Child-SP          RetAddr               Call Site
+00 0000005b`2883cac8 00007ff8`c923ee45     ntdll!NtWaitForMultipleObjects+0x14
+01 0000005b`2883cad0 00007ff8`c923ea7c     ntdll!WerpWaitForCrashReporting+0xa9
+02 0000005b`2883cb50 00007ff8`c923fb48     ntdll!RtlReportExceptionHelper+0x4fc
+03 0000005b`2883ccc0 00007ff8`c932b841     ntdll!RtlReportException+0x78
+04 0000005b`2883ccf0 00007ff8`c92e2263     ntdll!RtlReportFatalFailure$filt$0+0x33
+05 0000005b`2883cd20 00007ff8`c93265ff     ntdll!_C_specific_handler+0x93
+06 0000005b`2883cd90 00007ff8`c9235da9     ntdll!RtlpExecuteHandlerForException+0xf
+07 0000005b`2883cdc0 00007ff8`c9231516     ntdll!RtlDispatchException+0x2d9
+08 0000005b`2883d510 00007ff8`c92df9b5     ntdll!RtlRaiseException+0x206
+09 0000005b`2883e380 00007ff8`c9257f39     ntdll!RtlReportFatalFailure+0x9
+0a 0000005b`2883e3d0 00007ff8`c92741c2     ntdll!RtlReportCriticalFailure+0xa9
+0b 0000005b`2883e4c0 00007ff8`c930c50a     ntdll!RtlpHeapHandleError+0x12
+0c 0000005b`2883e4f0 00007ff8`c92d0687     ntdll!RtlpHpHeapHandleError+0x7a
+0d 0000005b`2883e520 00007ff8`c92118bf     ntdll!RtlpFreeNTHeapInternal+0xa7
+0e 0000005b`2883e5d0 00007ff8`c6964a1b     ntdll!RtlFreeHeap+0xcf
+0f 0000005b`2883e620 00007ff8`2f3abd05     ucrtbase!free_base+0x1b
+10 0000005b`2883e650 00007ff8`2f3a8f40     rexruntime!rex::input::CreateDefaultInputSystem+0x22b5
+11 0000005b`2883e690 00007ff8`2f3a94f0     rexruntime!rex::input::InputSystem::SetActiveCallback+0xc20
+12 0000005b`2883f800 00007ff8`2f57041b     rexruntime!rex::input::InputSystem::SetActiveCallback+0x11d0
+13 0000005b`2883f8e0 00007ff8`2f57347a     rexruntime!_imp__XamFree+0x12cab
+14 0000005b`2883f970 00007ff6`f8270eb4     rexruntime!_imp__XamInputSetState+0x2e1a
+15 0000005b`2883f9b0 00007ff6`f95ab9de     fable_2+0x1100eb4
+16 0000005b`2883fa20 00007ff6`fb149316     fable_2+0x243b9de
+17 0000005b`2883fa90 00007ff6`f927c045     fable_2+0x3fd9316
+18 0000005b`2883fae0 00007ff6`f80423ad     fable_2+0x210c045
+19 0000005b`2883fb30 00007ff6`f947a1c0     fable_2+0xed23ad
+1a 0000005b`2883fb80 00007ff6`fb018420     fable_2+0x230a1c0
+1b 0000005b`2883fc10 00007ff6`fbc8f462     fable_2+0x3ea8420
+########## fable_2.exe.10976.dmp (cdb ~*kn, faulting thread)
+# 34  Id: 2ae0.df4 Suspend: 0 Teb: 00000056`7e758000 Unfrozen "GameThread (F800002C)"
+ # Child-SP          RetAddr               Call Site
+00 00000056`093fc518 00007ff8`c923ee45     ntdll!NtWaitForMultipleObjects+0x14
+01 00000056`093fc520 00007ff8`c923ea7c     ntdll!WerpWaitForCrashReporting+0xa9
+02 00000056`093fc5a0 00007ff8`c923fb48     ntdll!RtlReportExceptionHelper+0x4fc
+03 00000056`093fc710 00007ff8`c932b841     ntdll!RtlReportException+0x78
+04 00000056`093fc740 00007ff8`c92e2263     ntdll!RtlReportFatalFailure$filt$0+0x33
+05 00000056`093fc770 00007ff8`c93265ff     ntdll!_C_specific_handler+0x93
+06 00000056`093fc7e0 00007ff8`c9235da9     ntdll!RtlpExecuteHandlerForException+0xf
+07 00000056`093fc810 00007ff8`c9231516     ntdll!RtlDispatchException+0x2d9
+08 00000056`093fcf60 00007ff8`c92df9b5     ntdll!RtlRaiseException+0x206
+09 00000056`093fddd0 00007ff8`c9257f39     ntdll!RtlReportFatalFailure+0x9
+0a 00000056`093fde20 00007ff8`c92741c2     ntdll!RtlReportCriticalFailure+0xa9
+0b 00000056`093fdf10 00007ff8`c930c50a     ntdll!RtlpHeapHandleError+0x12
+0c 00000056`093fdf40 00007ff8`c92d0687     ntdll!RtlpHpHeapHandleError+0x7a
+0d 00000056`093fdf70 00007ff8`c92118bf     ntdll!RtlpFreeNTHeapInternal+0xa7
+0e 00000056`093fe020 00007ff8`c6964a1b     ntdll!RtlFreeHeap+0xcf
+0f 00000056`093fe070 00007ff8`2f10bd05     ucrtbase!free_base+0x1b
+10 00000056`093fe0a0 00007ff8`2f108f40     rexruntime!rex::input::CreateDefaultInputSystem+0x22b5
+11 00000056`093fe0e0 00007ff8`2f1094f0     rexruntime!rex::input::InputSystem::SetActiveCallback+0xc20
+12 00000056`093ff250 00007ff8`2f2d041b     rexruntime!rex::input::InputSystem::SetActiveCallback+0x11d0
+13 00000056`093ff330 00007ff8`2f2d347a     rexruntime!_imp__XamFree+0x12cab
+14 00000056`093ff3c0 00007ff6`fc180bc8     rexruntime!_imp__XamInputSetState+0x2e1a
+15 00000056`093ff400 00007ff6`fa3803e0     fable_2+0x5010bc8
+16 00000056`093ff450 00007ff6`f8b29412     fable_2+0x32103e0
+17 00000056`093ff4c0 00007ff6`fd33fd06     fable_2+0x19b9412
+18 00000056`093ff500 00007ff6`fd33e7cc     fable_2+0x61cfd06
+19 00000056`093ff580 00007ff6`f7a5e630     fable_2+0x61ce7cc
+1a 00000056`093ff5d0 00007ff6`f770ae42     fable_2+0x8ee630
+1b 00000056`093ff640 00007ff6`f9ae4a03     fable_2+0x59ae42

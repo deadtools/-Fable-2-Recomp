@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
+using System.Security.Cryptography;
 using System.Text;
 
 namespace Fable2Launcher;
@@ -79,6 +80,9 @@ public static class DualShockPromptPatcher
         if (!File.Exists(textureBackup)) File.Copy(texturePath, textureBackup, overwrite: false);
         if (!File.Exists(headerBackup)) File.Copy(headerPath, headerBackup, overwrite: false);
 
+        // When coming from keyboard mode, restore the one special MenuHighlight
+        // resource to native format before calling the v17 PS badge patcher.
+        RestoreNativeBadgeIfKeyboard(texturePath, headerPath, headerBackup);
         byte[] originalTextures = File.ReadAllBytes(texturePath);
         byte[] originalHeaders = File.ReadAllBytes(headerPath);
         Dictionary<string, TextureReplacement> replacements = BuildReplacementSet();
@@ -116,6 +120,297 @@ public static class DualShockPromptPatcher
         return $"DualShock включён (v17): заменено {patchedNames.Count} GUI-текстур " +
                $"(атлас проверен: {(menuAtlas ? "да" : "нет — см. лог")}, " +
                $"значок MenuHighlight: {menuBadgeReport}, L1/L2/R1/R2: {lr}).";
+    }
+
+    /// <summary>
+    /// Third display mode. The game still sees Xbox guest actions; the UI artwork
+    /// shows the host keyboard/mouse key actually bound to each guest button.
+    /// The full 512px frame atlas is repacked as raw ARGB only for the verified
+    /// original/v17 game resource, preserving every other menu element.
+    /// </summary>
+    public static string ApplyKeyboardMouse(string gameDirectory, string keyboardGamepadMap)
+    {
+        DualShockMenuBadgePatcher.EnsureGameClosed();
+        string texturePath = FullPath(gameDirectory, RelativeBankPath);
+        string headerPath = FullPath(gameDirectory, RelativeHeaderBankPath);
+        if (!File.Exists(texturePath) || !File.Exists(headerPath))
+            throw new FileNotFoundException("Fable II GUI texture/header banks are missing.");
+        string textureBackup = texturePath + BackupSuffix;
+        string headerBackup = headerPath + BackupSuffix;
+        if (!File.Exists(textureBackup)) File.Copy(texturePath, textureBackup, false);
+        if (!File.Exists(headerBackup)) File.Copy(headerPath, headerBackup, false);
+
+        byte[] oldTextures = File.ReadAllBytes(texturePath);
+        byte[] oldHeaders = File.ReadAllBytes(headerPath);
+        string cachePath = texturePath + ".keyboard-prompts-cache.txt";
+        string mapHash = Convert.ToHexString(SHA256.HashData(
+            Encoding.UTF8.GetBytes("keyboard-prompts-1.6.2-menu-a-no-green-v6\n" + keyboardGamepadMap)));
+        string oldTextureHash = Convert.ToHexString(SHA256.HashData(oldTextures));
+        string oldHeaderHash = Convert.ToHexString(SHA256.HashData(oldHeaders));
+        if (File.Exists(cachePath) &&
+            File.ReadAllText(cachePath).Trim() == mapHash + "\n" + oldTextureHash + "\n" + oldHeaderHash)
+            return "Keyboard/Mouse prompts are current (cached); no bank changes required.";
+        var bindings = KeyboardMousePromptArtwork.ResolveBindings(keyboardGamepadMap);
+        Dictionary<string, TextureReplacement> replacements = BuildKeyboardReplacementSet(bindings);
+        CheckMenuBadgeSource(oldTextures, texturePath);
+        byte[] keyboardAtlas = KeyboardMousePromptArtwork.CreateAtlas(bindings);
+        byte[] newTextures = RepackTextureBank(oldTextures, replacements,
+            out Dictionary<string, TextureReplacement> replaced, out string atlasReport, keyboardAtlas);
+        byte[] newHeaders = PatchTextureHeaderBank(oldHeaders, replaced, out int headerCount);
+        ValidatePatchedBanks(newTextures, newHeaders, replacements, replaced);
+        if (!replaced.ContainsKey(KeyboardMousePromptArtwork.BadgeResourceName) ||
+            !replaced.ContainsKey(@"Art\GUI\Persistant\abyx.tex"))
+            throw new InvalidDataException("Keyboard prompts require both the MenuHighlight badge and ABYX atlas.");
+        // The player's minigame scan explicitly lists these two GameFace
+        // controller resources. Do not silently call the mini-game compatible
+        // if either one was absent from the actual game bank after repacking.
+        bool faceA = replaced.ContainsKey(@"Art\GUI\Controller\icon_button_a.tex");
+        bool faceB = replaced.ContainsKey(@"Art\GUI\Controller\icon_button_b.tex");
+        if (!faceA || !faceB)
+            throw new InvalidDataException("Keyboard/Mouse GameFace A/B resources are missing. " +
+                "Patch was not installed; verify your GUI banks. A=" + faceA + ", B=" + faceB);
+
+
+        // The alpha/mask portion of ABYX is unmodified; verify the actual BNK data.
+        CompactBank check = ReadCompactBank(newTextures);
+        BankEntry? atlas = check.Entries.FirstOrDefault(e => IsAbyxAtlas(e.Name));
+        if (atlas is null || atlas.Size != keyboardAtlas.Length + 4)
+            throw new InvalidDataException("The ABYX keyboard atlas failed verification.");
+        var badge = check.Entries.FirstOrDefault(e => e.Name.Equals(
+            KeyboardMousePromptArtwork.BadgeResourceName, StringComparison.OrdinalIgnoreCase));
+        if (badge is null) throw new InvalidDataException("Missing MenuHighlight badge after rebuild.");
+        byte[] badgeEntry = newTextures.AsSpan(check.BaseOffset + badge.RelativeOffset, badge.Size).ToArray();
+
+        // Save the recovery marker before mutating either bank. A later failed
+        // commit can roll back the banks without leaving an unrecognized RAW badge.
+        string hashPath = texturePath + ".keyboard-badge.sha256";
+        File.WriteAllText(hashPath, Convert.ToHexString(SHA256.HashData(badgeEntry)), new UTF8Encoding(false));
+        if (!oldTextures.AsSpan().SequenceEqual(newTextures) || !oldHeaders.AsSpan().SequenceEqual(newHeaders))
+            CommitBankPair(texturePath, headerPath, oldTextures, oldHeaders, newTextures, newHeaders);
+        // The next launch reuses the prepared artwork only if the keyboard map
+        // AND both complete bank hashes still match this successful install.
+        File.WriteAllText(cachePath, mapHash + "\n" +
+            Convert.ToHexString(SHA256.HashData(newTextures)) + "\n" +
+            Convert.ToHexString(SHA256.HashData(newHeaders)), new UTF8Encoding(false));
+
+        string message = $"Keyboard/Mouse prompts: {replaced.Count} UI textures, {headerCount} headers; " +
+            $"ABYX HOLD masks preserved; MenuHighlight A={KeyboardMousePromptArtwork.Label(bindings, "A")}, " +
+            $"B={KeyboardMousePromptArtwork.Label(bindings, "B")}. " +
+            "GameFace A/B texture replacements verified in the GUI bank. " +
+            "Mouse art LMB/MMB/RMB is embedded in the launcher. " +
+            "Guest actions and keyboard mappings are unchanged.";
+        WriteLog(Path.Combine(AppContext.BaseDirectory, "launcher-keyboard-prompts.log"),
+            message + Environment.NewLine + atlasReport + Environment.NewLine +
+            "Bindings: " + keyboardGamepadMap + Environment.NewLine + "Texture bank: " + texturePath);
+        return message;
+    }
+
+    private static Dictionary<string, TextureReplacement> BuildKeyboardReplacementSet(
+        IReadOnlyDictionary<string, string> bindings)
+    {
+        var result = new Dictionary<string, TextureReplacement>(StringComparer.OrdinalIgnoreCase);
+        void Add(string path, string guest, int size) => result[path] =
+            new TextureReplacement(size, size,
+                KeyboardMousePromptArtwork.RenderCircularKey(KeyboardMousePromptArtwork.Label(bindings, guest), size));
+        Add(@"Art\GUI\Controller\icon_button_a.tex", "A", 64);
+        Add(@"Art\GUI\Controller\icon_button_b.tex", "B", 64);
+        Add(@"Art\GUI\Controller\icon_button_x.tex", "X", 64);
+        Add(@"Art\GUI\Controller\icon_button_y.tex", "Y", 64);
+        Add(@"Art\GUI\Controller\icon_button_lt.tex", "LT", 64);
+        Add(@"Art\GUI\Controller\LeftButton.tex", "LB", 64);
+        Add(@"Art\GUI\Controller\RightButton.tex", "RB", 64);
+        Add(@"Art\GUI\Controller\LeftTrigger.tex", "LT", 64);
+        Add(@"Art\GUI\Controller\RightTrigger.tex", "RT", 64);
+        Add(@"Art\GUI\Controller\24x24\LeftButton.tex", "LB", 32);
+        Add(@"Art\GUI\Controller\24x24\RightButton.tex", "RB", 32);
+        Add(@"Art\GUI\Controller\24x24\LeftTrigger.tex", "LT", 32);
+        Add(@"Art\GUI\Controller\24x24\RightTrigger.tex", "RT", 32);
+        Add(@"Art\GUI\Controller\start.tex", "Pause", 64);
+        Add(@"Art\GUI\Controller\back.tex", "Select", 64);
+        Add(@"Art\GUI\Controller\24x24\Start.tex", "Pause", 32);
+        Add(@"Art\GUI\Controller\24x24\Back.tex", "Select", 32);
+        // Directional controls use the same guest input mapping as ABXY.
+        void AddDirectional(string stem, string guest, int size) =>
+            Add(@"Art\GUI\Controller\" + stem + ".tex", guest, size);
+        AddDirectional("LeftUp", "StickUp", 64);
+        AddDirectional("LeftDown", "StickDown", 64);
+        AddDirectional("LeftLeft", "StickLeft", 64);
+        AddDirectional("LeftRight", "StickRight", 64);
+        AddDirectional(@"24x24\LeftUp", "StickUp", 32);
+        AddDirectional(@"24x24\LeftDown", "StickDown", 32);
+        AddDirectional(@"24x24\LeftLeft", "StickLeft", 32);
+        AddDirectional(@"24x24\LeftRight", "StickRight", 32);
+        // In mouse-look mode the right stick is the mouse, not an Xbox icon.
+        void AddLiteral(string stem, string text, int size) =>
+            result[@"Art\GUI\Controller\" + stem + ".tex"] =
+                new TextureReplacement(size, size, KeyboardMousePromptArtwork.RenderCircularKey(text, size));
+        AddLiteral("Left", "MOVE", 64);
+        AddLiteral("Right", "MOUSE", 64);
+        AddLiteral("DPad", "↑↓", 64);
+        AddLiteral(@"24x24\DPad", "↑↓", 32);
+        AddLiteral(@"24x24\Left", "MOVE", 32);
+        AddLiteral(@"24x24\Right", "MOUSE", 32);
+        AddLiteral("RightUp", "M↑", 64);
+        AddLiteral("RightDown", "M↓", 32);
+        AddLiteral("RightLeft", "M←", 64);
+        AddLiteral("RightRight", "M→", 64);
+        AddLiteral(@"24x24\RightUp", "M↑", 32);
+        AddLiteral(@"24x24\RightDown", "M↓", 32);
+        AddLiteral(@"24x24\RightLeft", "M←", 32);
+        AddLiteral(@"24x24\RightRight", "M→", 32);
+        result[KeyboardMousePromptArtwork.BadgeResourceName] =
+            new TextureReplacement(512, 512, KeyboardMousePromptArtwork.CreateMenuBadge(bindings));
+        return result;
+    }
+
+    private static void CheckMenuBadgeSource(byte[] textures, string texturePath)
+    {
+        CompactBank bank = ReadCompactBank(textures);
+        var entry = bank.Entries.FirstOrDefault(e => e.Name.Equals(
+            KeyboardMousePromptArtwork.BadgeResourceName, StringComparison.OrdinalIgnoreCase));
+        if (entry is null) throw new InvalidDataException("Missing Frames/frames_elements.tex in game bank.");
+        byte[] bytes = textures.AsSpan(bank.BaseOffset + entry.RelativeOffset, entry.Size).ToArray();
+        string hash = Convert.ToHexString(SHA256.HashData(bytes));
+        if (hash == DualShockMenuBadgeArtwork.OriginalSha256 ||
+            hash == DualShockMenuBadgeArtwork.PatchedSha256) return;
+        string marker = texturePath + ".keyboard-badge.sha256";
+        if (entry.Size == 512 * 512 * 4 + 4 && File.Exists(marker) &&
+            hash.Equals(File.ReadAllText(marker).Trim(), StringComparison.OrdinalIgnoreCase)) return;
+
+        // v10 recovery: older launcher builds could leave the raw keyboard
+        // MenuHighlight entry in place while the small marker file was absent
+        // (for example after a diagnostic/recovery cycle).  Do not reject our
+        // own texture in that case.  First prove that the complete GUI bank is
+        // exactly the bank recorded by the keyboard-prompt cache; then recreate
+        // the marker from the current entry.
+        string cachePath = texturePath + ".keyboard-prompts-cache.txt";
+        if (entry.Size == 512 * 512 * 4 + 4 && File.Exists(cachePath))
+        {
+            try
+            {
+                string[] cache = File.ReadAllLines(cachePath);
+                string currentBankHash = Convert.ToHexString(SHA256.HashData(textures));
+                if (cache.Length >= 2 &&
+                    currentBankHash.Equals(cache[1].Trim(), StringComparison.OrdinalIgnoreCase))
+                {
+                    File.WriteAllText(marker, hash, new UTF8Encoding(false));
+                    return;
+                }
+            }
+            catch (IOException) { }
+            catch (UnauthorizedAccessException) { }
+        }
+
+        // Compatibility with the v6-v9 MenuHighlight texture observed in the
+        // user's installed game.  This exact hash is our generated E badge, not
+        // an arbitrary third-party texture.  Recreate the missing marker once.
+        const string LegacyKeyboardBadgeSha256 =
+            "CDDDA0D26B1A68AF03AE943225A23F731310321E8270D9A79AEB0D3C0F03B944";
+        if (entry.Size == 512 * 512 * 4 + 4 &&
+            hash.Equals(LegacyKeyboardBadgeSha256, StringComparison.OrdinalIgnoreCase))
+        {
+            try { File.WriteAllText(marker, hash, new UTF8Encoding(false)); }
+            catch (IOException) { }
+            catch (UnauthorizedAccessException) { }
+            return;
+        }
+
+        throw new InvalidDataException("Unrecognized MenuHighlight texture. Keyboard prompts were NOT installed " +
+            "to avoid overwriting another modification. SHA256=" + hash);
+    }
+
+    private static void RestoreNativeBadgeIfKeyboard(string texturePath, string headerPath, string originalHeaderBackup)
+    {
+        if (!File.Exists(texturePath + ".keyboard-badge.sha256")) return;
+        byte[] textures = File.ReadAllBytes(texturePath);
+        CompactBank bank = ReadCompactBank(textures);
+        var entry = bank.Entries.FirstOrDefault(e => e.Name.Equals(
+            KeyboardMousePromptArtwork.BadgeResourceName, StringComparison.OrdinalIgnoreCase));
+        if (entry is null || entry.Size != 512 * 512 * 4 + 4) return;
+        byte[] currentEntry = textures.AsSpan(bank.BaseOffset + entry.RelativeOffset, entry.Size).ToArray();
+        string marker = File.ReadAllText(texturePath + ".keyboard-badge.sha256").Trim();
+        if (!Convert.ToHexString(SHA256.HashData(currentEntry)).Equals(marker, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException("MenuHighlight badge was modified externally. Will not overwrite it.");
+        if (!File.Exists(originalHeaderBackup))
+            throw new FileNotFoundException("Original GUI header backup is required to restore PlayStation badge.");
+        byte[] headers = File.ReadAllBytes(headerPath);
+        byte[] backupHeaders = File.ReadAllBytes(originalHeaderBackup);
+        CompactBank hdr = ReadCompactBank(headers), backup = ReadCompactBank(backupHeaders);
+        var targetHeader = hdr.Entries.First(e => e.Name.Equals(
+            KeyboardMousePromptArtwork.BadgeResourceName, StringComparison.OrdinalIgnoreCase));
+        var sourceHeader = backup.Entries.First(e => e.Name.Equals(
+            KeyboardMousePromptArtwork.BadgeResourceName, StringComparison.OrdinalIgnoreCase));
+        if (targetHeader.Size != sourceHeader.Size || sourceHeader.Size < 84)
+            throw new InvalidDataException("Frame header entry layout mismatch.");
+        int sourceAt = backup.BaseOffset + sourceHeader.RelativeOffset;
+        if (ReadBe32(backupHeaders, sourceAt + 24) == 2)
+            throw new InvalidDataException("Saved native frame header is unexpectedly raw; refusing restore.");
+        byte[] restoredHeaders = (byte[])headers.Clone();
+        int destinationAt = hdr.BaseOffset + targetHeader.RelativeOffset;
+        Buffer.BlockCopy(backupHeaders, sourceAt, restoredHeaders,
+            destinationAt, sourceHeader.Size);
+        // Backups can have been created while v17 PlayStation prompts were
+        // already active; their frame header then has the patched entry size.
+        // We restore the original 75 KB native entry below, so fix its length.
+        WriteBe32(restoredHeaders, destinationAt + 4,
+            (uint)DualShockMenuBadgeArtwork.OriginalSize);
+        // Replace just one texture resource with the embedded, checksum-verified
+        // original native asset. The v17 patcher then makes the PlayStation badge.
+        byte[] restoredTextures = RepackSingleNativeEntry(textures,
+            KeyboardMousePromptArtwork.BadgeResourceName, DualShockMenuBadgeArtwork.Get(false));
+        CommitBankPair(texturePath, headerPath, textures, headers, restoredTextures, restoredHeaders);
+    }
+
+    private static byte[] RepackSingleNativeEntry(byte[] original, string target, byte[] nativeEntry)
+    {
+        CompactBank doc = ReadCompactBank(original);
+        byte[] toc = (byte[])doc.Toc.Clone();
+        var sorted = doc.Entries.OrderBy(e => e.RelativeOffset).ToList();
+        using var data = new MemoryStream(original.Length - doc.BaseOffset);
+        int previous = 0;
+        foreach (BankEntry entry in sorted)
+        {
+            int gap = entry.RelativeOffset - previous;
+            if (gap < 0) throw new InvalidDataException("Overlapping GUI bank entries.");
+            if (gap > 0) data.Write(original, doc.BaseOffset + previous, gap);
+            int offset = checked((int)data.Position);
+            bool match = entry.Name.Equals(target, StringComparison.OrdinalIgnoreCase);
+            byte[] blob = match ? nativeEntry : original.AsSpan(doc.BaseOffset + entry.RelativeOffset, entry.Size).ToArray();
+            data.Write(blob);
+            WriteBe32(toc, entry.TocMetaOffset, (uint)offset);
+            WriteBe32(toc, entry.TocMetaOffset + 4, (uint)blob.Length);
+            previous = entry.RelativeOffset + entry.Size;
+        }
+        if (previous < original.Length - doc.BaseOffset)
+            data.Write(original, doc.BaseOffset + previous, original.Length - doc.BaseOffset - previous);
+        byte[] packed = CompressTocWithoutAdler(toc);
+        if (packed.Length + TocHeaderOffset > doc.BaseOffset)
+            throw new InvalidDataException("TOC exceeds GUI bank header area.");
+        byte[] content = data.ToArray();
+        byte[] result = new byte[doc.BaseOffset + content.Length];
+        Buffer.BlockCopy(original, 0, result, 0, doc.BaseOffset);
+        Array.Clear(result, TocHeaderOffset, doc.BaseOffset - TocHeaderOffset);
+        WriteBe32(result, 0x09, (uint)packed.Length);
+        WriteBe32(result, 0x0D, (uint)toc.Length);
+        Buffer.BlockCopy(packed, 0, result, TocHeaderOffset, packed.Length);
+        Buffer.BlockCopy(content, 0, result, doc.BaseOffset, content.Length);
+        return result;
+    }
+
+    private static void CommitBankPair(string texturePath, string headerPath,
+        byte[] oldTextures, byte[] oldHeaders, byte[] newTextures, byte[] newHeaders)
+    {
+        try
+        {
+            AtomicWrite(texturePath, newTextures);
+            AtomicWrite(headerPath, newHeaders);
+        }
+        catch
+        {
+            try { AtomicWrite(texturePath, oldTextures); AtomicWrite(headerPath, oldHeaders); }
+            catch { /* The original .xbox-prompts-backup files are also available. */ }
+            throw;
+        }
     }
 
     public static bool RestoreIfPresent(string gameDirectory)
@@ -190,7 +485,8 @@ public static class DualShockPromptPatcher
     private static byte[] RepackTextureBank(
         byte[] original,
         IReadOnlyDictionary<string, TextureReplacement> replacements,
-        out Dictionary<string, TextureReplacement> patchedEntries, out string atlasReport)
+        out Dictionary<string, TextureReplacement> patchedEntries, out string atlasReport,
+        byte[]? keyboardAtlas = null)
     {
         CompactBank doc = ReadCompactBank(original);
         byte[] toc = (byte[])doc.Toc.Clone();
@@ -216,11 +512,20 @@ public static class DualShockPromptPatcher
             TextureReplacement? atlasReplacement = null;
             if (IsAbyxAtlas(entry.Name))
             {
-                int atlasStart = checked(doc.BaseOffset + entry.RelativeOffset);
-                if (DualShockAtlasArtwork.TryGetReplacement(original, atlasStart, entry.Size,
-                    out byte[] repairedPixels, out string diagnosis))
-                    atlasReplacement = new TextureReplacement(256, 256, repairedPixels);
-                atlasReport = diagnosis;
+                if (keyboardAtlas is not null)
+                {
+                    atlasReplacement = new TextureReplacement(256, 256, keyboardAtlas);
+                    atlasReport = "Keyboard atlas generated from the original HOLD-safe 256px base; " +
+                        "two 64px icon rows replaced, lower half preserved.";
+                }
+                else
+                {
+                    int atlasStart = checked(doc.BaseOffset + entry.RelativeOffset);
+                    if (DualShockAtlasArtwork.TryGetReplacement(original, atlasStart, entry.Size,
+                        out byte[] repairedPixels, out string diagnosis))
+                        atlasReplacement = new TextureReplacement(256, 256, repairedPixels);
+                    atlasReport = diagnosis;
+                }
             }
             bool isRegularReplacement = TryResolveReplacement(entry.Name, replacements,
                 out TextureReplacement? regularReplacement);

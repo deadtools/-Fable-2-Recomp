@@ -1,0 +1,212 @@
+rexruntime.dll SHA256 1D8CBB878543C179DCC9EC53AC527C63E43A9B1107BA7F0995A3EB3384EC5AEA (D:\Fable2\Game, 2026-10-23 10:18)
+Tool: llvm-objdump (LLVM 23.1.4). Symbol names in <> are nearest EXPORTS, not real functions.
+
+===== RVA 0x1281e0..0x12823d (Shutdown)
+1801281e0:     	pushq	%rsi
+1801281e1:     	pushq	%rdi
+1801281e2:     	pushq	%rbx
+1801281e3:     	subq	$0x20, %rsp
+1801281e7:     	movq	%rcx, %rsi
+1801281ea:     	addq	$0x50, %rcx
+1801281ee:     	callq	0x18012bce0 
+1801281f3:     	movq	0x68(%rsi), %rax
+1801281f7:     	cmpq	0x70(%rsi), %rax
+1801281fb:     	je	0x180128201 
+1801281fd:     	movq	%rax, 0x70(%rsi)
+180128201:     	movq	0x10(%rsi), %rdi
+180128205:     	movq	0x18(%rsi), %rbx
+180128209:     	cmpq	%rbx, %rdi
+18012820c:     	jne	0x180128219 
+18012820e:     	jmp	0x180128235 
+180128210:     	addq	$0x8, %rdi
+180128214:     	cmpq	%rbx, %rdi
+180128217:     	je	0x18012822d 
+180128219:     	movq	(%rdi), %rcx
+18012821c:     	testq	%rcx, %rcx
+18012821f:     	je	0x180128210 
+180128221:     	movq	(%rcx), %rax
+180128224:     	movl	$0x1, %edx
+180128229:     	callq	*(%rax)
+18012822b:     	jmp	0x180128210 
+18012822d:     	movq	0x10(%rsi), %rax
+180128231:     	movq	%rax, 0x18(%rsi)
+180128235:     	addq	$0x20, %rsp
+180128239:     	popq	%rbx
+18012823a:     	popq	%rdi
+18012823b:     	popq	%rsi
+18012823c:     	retq
+
+===== RVA 0x12bce0..0x12bdc5 (vector_DeviceInfo_clear)
+18012bce0:     	pushq	%rsi
+18012bce1:     	pushq	%rdi
+18012bce2:     	pushq	%rbx
+18012bce3:     	subq	$0x20, %rsp
+18012bce7:     	movq	(%rcx), %rdi
+18012bcea:     	movq	0x8(%rcx), %rbx
+18012bcee:     	cmpq	%rbx, %rdi
+18012bcf1:     	je	0x18012bdbb 
+18012bcf7:     	movq	%rcx, %rsi
+18012bcfa:     	jmp	0x18012bd26 
+18012bcfc:     	nopl	(%rax)
+18012bd00:     	callq	0x18069dba0 
+18012bd05:     	movq	$0x0, 0x20(%rdi)
+18012bd0d:     	movq	$0xf, 0x28(%rdi)
+18012bd15:     	movb	$0x0, 0x10(%rdi)
+18012bd19:     	addq	$0x58, %rdi
+18012bd1d:     	cmpq	%rbx, %rdi
+18012bd20:     	je	0x18012bdb4 
+18012bd26:     	movq	0x48(%rdi), %rax
+18012bd2a:     	cmpq	$0x10, %rax
+18012bd2e:     	jb	0x18012bd61 
+18012bd30:     	movq	0x30(%rdi), %rcx
+18012bd34:     	leaq	0x1(%rax), %rdx
+18012bd38:     	cmpq	$0x1000, %rdx           # imm = 0x1000
+18012bd3f:     	jb	0x18012bd5c 
+18012bd41:     	movq	-0x8(%rcx), %r8
+18012bd45:     	addq	$-0x8, %rcx
+18012bd49:     	subq	%r8, %rcx
+18012bd4c:     	cmpq	$0x20, %rcx
+18012bd50:     	jae	0x18012bdc3 
+18012bd52:     	addq	$0x28, %rax
+18012bd56:     	movq	%rax, %rdx
+18012bd59:     	movq	%r8, %rcx
+18012bd5c:     	callq	0x18069dba0 
+18012bd61:     	movq	$0x0, 0x40(%rdi)
+18012bd69:     	movq	$0xf, 0x48(%rdi)
+18012bd71:     	movb	$0x0, 0x30(%rdi)
+18012bd75:     	movq	0x28(%rdi), %rax
+18012bd79:     	cmpq	$0x10, %rax
+18012bd7d:     	jb	0x18012bd05 
+18012bd7f:     	movq	0x10(%rdi), %rcx
+18012bd83:     	leaq	0x1(%rax), %rdx
+18012bd87:     	cmpq	$0x1000, %rdx           # imm = 0x1000
+18012bd8e:     	jb	0x18012bd00 
+18012bd94:     	movq	-0x8(%rcx), %r8
+18012bd98:     	addq	$-0x8, %rcx
+18012bd9c:     	subq	%r8, %rcx
+18012bd9f:     	cmpq	$0x20, %rcx
+18012bda3:     	jae	0x18012bdc3 
+18012bda5:     	addq	$0x28, %rax
+18012bda9:     	movq	%rax, %rdx
+18012bdac:     	movq	%r8, %rcx
+18012bdaf:     	jmp	0x18012bd00 
+18012bdb4:     	movq	(%rsi), %rax
+18012bdb7:     	movq	%rax, 0x8(%rsi)
+18012bdbb:     	addq	$0x20, %rsp
+18012bdbf:     	popq	%rbx
+18012bdc0:     	popq	%rdi
+18012bdc1:     	popq	%rsi
+18012bdc2:     	retq
+18012bdc3:     	ud2
+
+===== RefreshDevices 0x1285d0..0x12914f (excerpt around devices_.clear)
+180128f20:     	callq	0x18012a7a0 <..>
+180128f25:     	cmpq	$0x201, -0x48(%rbp)     # imm = 0x201
+180128f2d:     	jb	0x180128f38 <..>
+180128f2f:     	movq	-0x50(%rbp), %rcx
+180128f33:     	callq	0x18069db80 
+180128f38:     	movq	%rbx, %rcx
+180128f3b:     	callq	0x18012bce0 <..>
+180128f40:     	movq	0x1080(%rbp), %rcx
+180128f47:     	movq	0x68(%rcx), %rax
+180128f4b:     	cmpq	0x70(%rcx), %rax
+180128f4f:     	je	0x180128f55 <..>
+180128f51:     	movq	%rax, 0x70(%rcx)
+180128f55:     	leaq	0x68(%rcx), %r14
+
+===== RVA 0x129320 (GetCapabilities)
+180129320:     	pushq	%rbp
+180129321:     	pushq	%r15
+180129323:     	pushq	%r14
+180129325:     	pushq	%rsi
+180129326:     	pushq	%rdi
+180129327:     	pushq	%rbx
+180129328:     	subq	$0x48, %rsp
+18012932c:     	leaq	0x40(%rsp), %rbp
+180129331:     	movq	$-0x2, (%rbp)
+180129339:     	movl	$0x48f, %esi            # imm = 0x48F
+18012933e:     	testq	%r9, %r9
+180129341:     	je	0x180129466 
+180129347:     	movq	%rcx, %rdi
+18012934a:     	cmpq	$0x0, 0x28(%rcx)
+18012934f:     	je	0x180129466 
+180129355:     	movl	%edx, %ebx
+180129357:     	movl	%r8d, %r14d
+18012935a:     	movq	%r9, %r15
+18012935d:     	movq	%rdi, %rcx
+180129360:     	callq	0x1801285d0 
+180129365:     	xorps	%xmm0, %xmm0
+180129368:     	movaps	%xmm0, -0x20(%rbp)
+18012936c:     	movq	$0x0, -0x10(%rbp)
+
+===== RVA 0x1294b0 (GetState)
+1801294b0:     	pushq	%rbp
+1801294b1:     	pushq	%r15
+1801294b3:     	pushq	%r14
+1801294b5:     	pushq	%r13
+1801294b7:     	pushq	%r12
+1801294b9:     	pushq	%rsi
+1801294ba:     	pushq	%rdi
+1801294bb:     	pushq	%rbx
+1801294bc:     	subq	$0x98, %rsp
+1801294c3:     	leaq	0x80(%rsp), %rbp
+1801294cb:     	movaps	%xmm6, (%rbp)
+1801294cf:     	movq	$-0x2, -0x8(%rbp)
+1801294d7:     	movq	%r8, -0x58(%rbp)
+1801294db:     	cmpq	$0x0, 0x28(%rcx)
+1801294e0:     	je	0x18012964d 
+1801294e6:     	movl	%edx, %esi
+1801294e8:     	movq	%rcx, %rbx
+1801294eb:     	callq	0x1801285d0 
+1801294f0:     	xorps	%xmm6, %xmm6
+1801294f3:     	movaps	%xmm6, -0x30(%rbp)
+
+===== RVA 0x1296b0 (SetState)
+1801296b0:     	pushq	%rbp
+1801296b1:     	pushq	%r15
+1801296b3:     	pushq	%r14
+1801296b5:     	pushq	%r13
+1801296b7:     	pushq	%r12
+1801296b9:     	pushq	%rsi
+1801296ba:     	pushq	%rdi
+1801296bb:     	pushq	%rbx
+1801296bc:     	subq	$0x68, %rsp
+1801296c0:     	leaq	0x60(%rsp), %rbp
+1801296c5:     	movq	$-0x2, (%rbp)
+1801296cd:     	movq	%r8, -0x38(%rbp)
+1801296d1:     	cmpq	$0x0, 0x28(%rcx)
+1801296d6:     	je	0x180129841 
+1801296dc:     	movl	%edx, %ebx
+1801296de:     	movq	%rcx, %rdi
+1801296e1:     	callq	0x1801285d0 
+
+===== RVA 0x1298a0 (GetKeystroke)
+1801298a0:     	pushq	%rbp
+1801298a1:     	pushq	%r15
+1801298a3:     	pushq	%r14
+1801298a5:     	pushq	%r13
+1801298a7:     	pushq	%r12
+1801298a9:     	pushq	%rsi
+1801298aa:     	pushq	%rdi
+1801298ab:     	pushq	%rbx
+1801298ac:     	subq	$0x48, %rsp
+1801298b0:     	leaq	0x40(%rsp), %rbp
+1801298b5:     	movq	$-0x2, (%rbp)
+1801298bd:     	cmpq	$0x0, 0x28(%rcx)
+1801298c2:     	je	0x18012999a 
+1801298c8:     	movq	%r9, %rsi
+1801298cb:     	movl	%r8d, %ebx
+1801298ce:     	movl	%edx, %edi
+1801298d0:     	movq	%rcx, %r14
+1801298d3:     	callq	0x1801285d0 
+
+===== RVA 0x2f0400 (XamInputGetState_entry_shim)
+1802f0400:     	<unknown>
+1802f0402:     	callq	0x18023a460 
+1802f0407:     	movq	(%rax), %rax
+1802f040a:     	movq	0xf8(%rax), %rcx
+1802f0411:     	movq	(%rdi), %r8
+1802f0414:     	movl	%esi, %edx
+1802f0416:     	callq	0x1801294b0 
+1802f041b:     	nop
+1802f041c:     	addq	$0x68, %rsp

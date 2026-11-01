@@ -1,513 +1,1079 @@
 <Window x:Class="Fable2Launcher.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Fable II Recompiled — Лаунчер 1.6.1"
+        Title="Fable II Recompiled — Лаунчер 2.0.0"
         Icon="/Assets/app-icon.png"
-        Width="930" Height="700" MinWidth="820" MinHeight="640"
+        Width="1280" Height="720"
+        WindowStyle="None" ResizeMode="CanMinimize"
         WindowStartupLocation="CenterScreen"
+        UseLayoutRounding="True"
+        FontFamily="{StaticResource BodyFont}"
         Foreground="{StaticResource TextBrush}"
-        Background="#FF091012">
+        Background="#FF0D0A09">
   <Window.Resources>
-    <Style x:Key="SectionTitle" TargetType="TextBlock">
-      <Setter Property="FontSize" Value="18" />
-      <Setter Property="FontWeight" Value="SemiBold" />
-      <Setter Property="Foreground" Value="#FFFFE8B4" />
-      <Setter Property="Margin" Value="0,0,0,16" />
+    <!-- Small RU / EN selector on the home bar -->
+    <Style x:Key="LangCombo" TargetType="ComboBox">
+      <Setter Property="Width" Value="84" />
+      <Setter Property="Height" Value="58" />
+      <Setter Property="FontSize" Value="20" />
+      <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="ComboBox">
+            <Grid>
+              <ToggleButton Focusable="False"
+                            IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}">
+                <ToggleButton.Template>
+                  <ControlTemplate TargetType="ToggleButton">
+                    <Border x:Name="B" Background="#E6150E0C" BorderBrush="{StaticResource GoldBrush}"
+                            BorderThickness="1" CornerRadius="5" />
+                    <ControlTemplate.Triggers>
+                      <Trigger Property="IsMouseOver" Value="True">
+                        <Setter TargetName="B" Property="Background" Value="#FF2C1F16" />
+                      </Trigger>
+                    </ControlTemplate.Triggers>
+                  </ControlTemplate>
+                </ToggleButton.Template>
+              </ToggleButton>
+              <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center"
+                          IsHitTestVisible="False">
+                <ContentPresenter Content="{TemplateBinding SelectionBoxItem}" VerticalAlignment="Center" />
+                <TextBlock Text=" ▾" FontSize="14" Foreground="{StaticResource GoldTextBrush}"
+                           VerticalAlignment="Center" Margin="6,2,0,0" />
+              </StackPanel>
+              <Popup IsOpen="{TemplateBinding IsDropDownOpen}" Placement="Top" AllowsTransparency="True"
+                     Focusable="False" PopupAnimation="Fade">
+                <Border Background="#FA16100E" BorderBrush="#FFB88A4E" BorderThickness="1" CornerRadius="4"
+                        MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}" Margin="0,0,0,4">
+                  <ItemsPresenter />
+                </Border>
+              </Popup>
+            </Grid>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
     </Style>
-    <Style x:Key="FieldLabel" TargetType="TextBlock">
-      <Setter Property="FontSize" Value="12" />
-      <Setter Property="Foreground" Value="{StaticResource MutedTextBrush}" />
-      <Setter Property="Margin" Value="0,0,0,6" />
+    <Style x:Key="Separator" TargetType="Border">
+      <Setter Property="Height" Value="1" />
+      <Setter Property="Background" Value="#FF5A4128" />
     </Style>
-    <Style x:Key="Panel" TargetType="Border">
-      <Setter Property="Background" Value="{StaticResource PanelBrush}" />
-      <Setter Property="BorderBrush" Value="{StaticResource PanelBorderBrush}" />
-      <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="CornerRadius" Value="12" />
-      <Setter Property="Padding" Value="22" />
+    <!-- One toggle row: label + description on the left, switch on the right -->
+    <Style x:Key="ToggleRow" TargetType="Grid">
+      <Setter Property="Margin" Value="0,0,0,4" />
     </Style>
   </Window.Resources>
 
-  <Grid>
-    <Grid.Background>
-      <RadialGradientBrush Center="0.1,0.05" GradientOrigin="0.1,0.05" RadiusX="1.1" RadiusY="1.2">
-        <GradientStop Color="#FF293B35" Offset="0" />
-        <GradientStop Color="#FF111A1B" Offset="0.42" />
-        <GradientStop Color="#FF070C0E" Offset="1" />
-      </RadialGradientBrush>
-    </Grid.Background>
+  <!-- Everything is laid out on a fixed 1600 x 900 design canvas and scaled. -->
+  <Viewbox Stretch="Uniform">
+    <Grid x:Name="Stage" Width="1600" Height="900" ClipToBounds="True"
+          MouseLeftButtonDown="StageMouseLeftButtonDown">
 
-    <Grid.RowDefinitions>
-      <RowDefinition Height="Auto" />
-      <RowDefinition Height="*" />
-      <RowDefinition Height="Auto" />
-    </Grid.RowDefinitions>
+      <!-- ===================== HOME ===================== -->
+      <Grid x:Name="HomePage">
+        <Image Source="/Resources/V2/home-background.jpg" Stretch="UniformToFill" />
+        <TextBlock Text="FABLE II  /  RECOMP LAUNCHER" FontSize="17" Foreground="{StaticResource GoldTextBrush}"
+                   Margin="26,22,0,0" HorizontalAlignment="Left" VerticalAlignment="Top" />
 
-    <Grid Margin="34,28,34,22">
-      <Grid.ColumnDefinitions>
-        <ColumnDefinition Width="*" />
-        <ColumnDefinition Width="Auto" />
-      </Grid.ColumnDefinitions>
-      <StackPanel>
-        <TextBlock Text="F A B L E  I I" FontFamily="Georgia" FontSize="36" FontWeight="Bold"
-                   Foreground="#FFFFD888" />
-        <TextBlock Text="ЛАУНЧЕР РЕКОМПИЛЯЦИИ" FontSize="13" FontWeight="SemiBold"
-                   Foreground="#FFC69A46" Margin="2,3,0,0" />
-        <TextBlock Text="Версия 1.6.1" FontSize="12" FontWeight="SemiBold"
-                   Foreground="#FFB9D6C7" Margin="2,7,0,0" />
-      </StackPanel>
-      <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-        <!-- Display language affects the launcher only, not the game locale. -->
-        <TextBlock Text="ЯЗЫК" FontSize="12" Foreground="{StaticResource MutedTextBrush}"
-                   VerticalAlignment="Center" Margin="0,0,7,0" />
-        <ComboBox x:Name="LanguageCombo" Width="73" Height="34" FontSize="12"
-                  Margin="0,0,12,0" VerticalAlignment="Center"
-                  AutomationProperties.Name="Язык интерфейса"
-                  SelectionChanged="LanguageSelectionChanged">
-          <ComboBoxItem Tag="en">EN</ComboBoxItem>
-          <ComboBoxItem Tag="ru">RU</ComboBoxItem>
-        </ComboBox>
-        <Border Background="#332A3D36" BorderBrush="#556B887B"
-                BorderThickness="1" CornerRadius="18" Padding="13,7">
-          <TextBlock x:Name="ConfigStateText" Text="Конфигурация готова" FontSize="12"
-                     Foreground="#FFB9D6C7" />
-        </Border>
-        <Button x:Name="AdvancedOptionsButton" Content="Расширенные настройки"
-                Click="AdvancedOptionsClicked" Style="{StaticResource SecondaryButton}"
-                Margin="14,0,0,0" />
-      </StackPanel>
-    </Grid>
-
-    <Grid Grid.Row="1">
-      <!-- Main page content -->
-      <ScrollViewer x:Name="MainContent" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-      <Grid Margin="34,0,34,22">
-        <Grid.RowDefinitions>
-          <RowDefinition Height="Auto" />
-          <RowDefinition Height="Auto" />
-        </Grid.RowDefinitions>
-        <Grid.ColumnDefinitions>
-          <ColumnDefinition Width="3*" />
-          <ColumnDefinition Width="18" />
-          <ColumnDefinition Width="2*" />
-        </Grid.ColumnDefinitions>
-
-        <!-- Release notes for this launcher, not the base game's version. -->
-        <Border Grid.Row="0" Grid.ColumnSpan="3" Style="{StaticResource Panel}"
-                Margin="0,0,0,18" Padding="18,14">
-          <StackPanel>
-            <TextBlock Text="Что нового в лаунчере 1.6.1" FontSize="17" FontWeight="SemiBold"
-                       Foreground="#FFFFE8B4" Margin="0,0,0,8" />
-            <TextBlock FontSize="12" TextWrapping="Wrap" Margin="0,0,0,5">
-              <Run Foreground="#FF7ECCB5" Text="✓  " />
-              <Run Text="Исправлено отображение текстур героя и собаки." />
-            </TextBlock>
-            <TextBlock FontSize="12" TextWrapping="Wrap" Margin="0,0,0,5">
-              <Run Foreground="#FF7ECCB5" Text="✓  " />
-              <Run Text="Добавлено переключение значков управления Xbox / PlayStation (DualShock)." />
-            </TextBlock>
-            <TextBlock FontSize="12" TextWrapping="Wrap">
-              <Run Foreground="#FF7ECCB5" Text="✓  " />
-              <Run Text="Добавлена регулировка скорости игры: 0,1–2,0×, шаг 0,1; по умолчанию 1,0×." />
-            </TextBlock>
-            <TextBlock FontSize="12" TextWrapping="Wrap" Margin="0,5,0,0">
-              <Run Foreground="#FF7ECCB5" Text="✓  " />
-              <Run Text="Добавлено переключение языка интерфейса между английским и русским (EN / RU)." />
-            </TextBlock>
-            <TextBlock FontSize="12" Margin="0,12,0,0" Foreground="{StaticResource MutedTextBrush}">
-              <Run Text="Автор этих доработок: " />
-              <Hyperlink NavigateUri="https://github.com/deadtools"
-                         RequestNavigate="DeadtoolsLinkRequested"
-                         Foreground="#FFFFD888" TextDecorations="Underline">deadtools</Hyperlink>
-            </TextBlock>
-          </StackPanel>
+        <!-- Status / result line above the bottom bar -->
+        <Border VerticalAlignment="Bottom" HorizontalAlignment="Left" Margin="28,0,0,146"
+                MaxWidth="1100" Background="#B30E0A09" CornerRadius="4" Padding="14,8"
+                x:Name="StatusBorder" Visibility="Collapsed">
+          <TextBlock x:Name="StatusText" Text="" FontSize="16" Foreground="{StaticResource MutedTextBrush}"
+                     TextWrapping="Wrap" />
         </Border>
 
-        <StackPanel Grid.Row="1" Grid.Column="0">
-          <Border Style="{StaticResource Panel}" Margin="0,0,0,18">
-            <StackPanel>
-              <TextBlock Text="Скорость игры" Style="{StaticResource SectionTitle}" />
-              <DockPanel Margin="0,0,0,8">
-                <Button DockPanel.Dock="Right" Content="Обычная: 1,0&#xD7;"
-                        Click="ResetGameSpeedClicked" Style="{StaticResource SecondaryButton}" />
-                <TextBlock x:Name="GameSpeedValueText" Text="1,0&#xD7;" FontSize="24"
-                           FontWeight="SemiBold" VerticalAlignment="Center" />
-              </DockPanel>
-              <Slider x:Name="GameSpeedSlider" Minimum="1" Maximum="20" Value="10"
-                      TickFrequency="1" IsSnapToTickEnabled="True" SmallChange="1" LargeChange="1"
-                      TickPlacement="BottomRight" IsMoveToPointEnabled="True"
-                      AutomationProperties.Name="Скорость игры"
-                      ValueChanged="GameSpeedChanged" />
-              <DockPanel Margin="0,4,0,0">
-                <TextBlock x:Name="GameSpeedMaxText" DockPanel.Dock="Right" Text="2,0&#xD7;" HorizontalAlignment="Right" />
-                <TextBlock x:Name="GameSpeedMinText" Text="0,1&#xD7;" />
-              </DockPanel>
-              <TextBlock Text="Постоянное замедление или ускорение. 1,0× — как сейчас. Шаг 0,1; применяется при новом запуске игры." FontSize="12" TextWrapping="Wrap"
-                         Foreground="{StaticResource MutedTextBrush}" Margin="0,8,0,0" />
-              <TextBlock Text="Экспериментально: меню и таймеры тоже могут менять темп; возможна рассинхронизация звука/роликов. Нужна совместимая сборка игры с поддержкой изменения скорости." FontSize="12" TextWrapping="Wrap"
-                         Foreground="{StaticResource MutedTextBrush}" Margin="0,6,0,0" />
+        <!-- Bottom bar -->
+        <Border VerticalAlignment="Bottom" Height="130" Background="#F0100B0A"
+                BorderBrush="#FF8A6A3E" BorderThickness="0,1.5,0,0">
+          <Grid Margin="28,0,28,0">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="Auto" />
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="Auto" />
+              <ColumnDefinition Width="Auto" />
+              <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <ComboBox x:Name="LanguageCombo" Style="{StaticResource LangCombo}" VerticalAlignment="Center"
+                      AutomationProperties.Name="Язык интерфейса"
+                      SelectionChanged="LanguageSelectionChanged">
+              <ComboBoxItem Tag="ru">RU</ComboBoxItem>
+              <ComboBoxItem Tag="en">EN</ComboBoxItem>
+            </ComboBox>
+
+            <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="22,0,0,0">
+              <TextBlock x:Name="HomeVersionText" Text="ВЕРСИЯ ЛАУНЧЕРА 2.0.0" FontSize="20" FontWeight="Bold"
+                         Foreground="{StaticResource GoldTextBrush}" />
+              <StackPanel x:Name="HomeLinks" Orientation="Horizontal" Margin="0,12,0,0">
+                <Button Content="Что нового?" Style="{StaticResource LinkButton}" Click="WhatsNewClicked" />
+                <TextBlock Text="  ·  " FontSize="19" Foreground="{StaticResource MutedTextBrush}" />
+                <Button Content="Проверить обновления на GitHub" Style="{StaticResource LinkButton}"
+                        Click="CheckUpdatesClicked" ToolTip="https://github.com/deadtools/-Fable-2-Recomp/releases" />
+                <TextBlock Text="  ·  " FontSize="19" Foreground="{StaticResource MutedTextBrush}" />
+                <Button Content="Проект на GitHub" Style="{StaticResource LinkButton}"
+                        Click="ProjectLinkClicked" ToolTip="https://github.com/deadtools/-Fable-2-Recomp" />
+              </StackPanel>
+              <TextBlock x:Name="HomeNotFoundHint" Text="Файлы игры можно указать в настройках" FontSize="18"
+                         Foreground="{StaticResource TextBrush}" Margin="0,12,0,0" Visibility="Collapsed" />
             </StackPanel>
-          </Border>
-          <Border Style="{StaticResource Panel}">
-            <StackPanel>
-              <TextBlock Text="Графика" Style="{StaticResource SectionTitle}" />
 
-              <Grid>
-                <Grid.ColumnDefinitions>
-                  <ColumnDefinition Width="*" />
-                  <ColumnDefinition Width="16" />
-                  <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
-
+            <!-- Game status -->
+            <Grid Grid.Column="2" VerticalAlignment="Center" Margin="0,0,30,0">
+              <StackPanel x:Name="GameFoundPanel" Orientation="Horizontal">
+                <Ellipse x:Name="GameStatusDot" Width="16" Height="16" Fill="{StaticResource SuccessBrush}"
+                         VerticalAlignment="Top" Margin="0,10,10,0" />
                 <StackPanel>
-                  <TextBlock Text="РАЗРЕШЕНИЕ ЭКРАНА" Style="{StaticResource FieldLabel}" />
-                  <ComboBox x:Name="ResolutionCombo" SelectionChanged="SettingChanged">
-                    <ComboBoxItem Tag="720p">1280 × 720</ComboBoxItem>
-                    <ComboBoxItem Tag="1080p">1920 × 1080</ComboBoxItem>
-                    <ComboBoxItem Tag="1440p">2560 × 1440</ComboBoxItem>
-                    <ComboBoxItem Tag="4k">3840 × 2160</ComboBoxItem>
-                  </ComboBox>
+                  <TextBlock x:Name="GameStatusTitle" Text="Игра найдена" FontSize="23" FontWeight="Bold"
+                             Foreground="{StaticResource TextBrush}" />
+                  <TextBlock x:Name="GameStatusSubtitle" Text="" FontSize="18"
+                             Foreground="{StaticResource MutedTextBrush}" Margin="0,8,0,0" />
                 </StackPanel>
-
-                <StackPanel Grid.Column="2">
-                  <TextBlock Text="ВНУТРЕННИЙ МАСШТАБ РЕНДЕРА" Style="{StaticResource FieldLabel}" />
-                  <ComboBox x:Name="RenderScaleCombo" SelectionChanged="SettingChanged">
-                    <ComboBoxItem Tag="1">1× — Нативные 720p</ComboBoxItem>
-                    <ComboBoxItem Tag="2">2× — Нативные 1440p</ComboBoxItem>
-                    <ComboBoxItem Tag="3">3× — Нативные 4K</ComboBoxItem>
-                    <ComboBoxItem Tag="4">4× — 5120 × 2880</ComboBoxItem>
-                  </ComboBox>
-                </StackPanel>
-              </Grid>
-
-              <Grid Margin="0,18,0,0">
-                <Grid.ColumnDefinitions>
-                  <ColumnDefinition Width="*" />
-                  <ColumnDefinition Width="16" />
-                  <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
-                <StackPanel>
-                  <TextBlock Text="ФИЛЬТРАЦИЯ ТЕКСТУР" Style="{StaticResource FieldLabel}" />
-                  <ComboBox x:Name="AnisotropicCombo" SelectionChanged="SettingChanged">
-                    <ComboBoxItem Tag="-1">Как в игре</ComboBoxItem>
-                    <ComboBoxItem Tag="1">1× анизотропная</ComboBoxItem>
-                    <ComboBoxItem Tag="2">2× анизотропная</ComboBoxItem>
-                    <ComboBoxItem Tag="3">4× анизотропная</ComboBoxItem>
-                    <ComboBoxItem Tag="4">8× анизотропная</ComboBoxItem>
-                    <ComboBoxItem Tag="5">16× анизотропная</ComboBoxItem>
-                  </ComboBox>
-                </StackPanel>
-                <StackPanel Grid.Column="2">
-                  <TextBlock Text="РЕЖИМ ЭКРАНА" Style="{StaticResource FieldLabel}" />
-                  <ComboBox x:Name="DisplayModeCombo" SelectionChanged="SettingChanged">
-                    <ComboBoxItem Tag="windowed">Оконный</ComboBoxItem>
-                    <ComboBoxItem Tag="borderless">Полноэкранный без рамки</ComboBoxItem>
-                    <ComboBoxItem Tag="exclusive">Эксклюзивный полноэкранный</ComboBoxItem>
-                  </ComboBox>
-                </StackPanel>
-              </Grid>
-
-              <StackPanel Margin="0,18,0,0">
-                <TextBlock Text="СГЛАЖИВАНИЕ (ПОСТОБРАБОТКА)" Style="{StaticResource FieldLabel}" />
-                <ComboBox x:Name="AntiAliasingCombo" SelectionChanged="SettingChanged">
-                  <ComboBoxItem Tag="none">Выкл. — сглаживание игры</ComboBoxItem>
-                  <ComboBoxItem Tag="fxaa">FXAA</ComboBoxItem>
-                  <ComboBoxItem Tag="fxaa_extreme">FXAA Экстремальное</ComboBoxItem>
-                </ComboBox>
-                <TextBlock Text="Дополнительное сглаживание краёв. Более высокий внутренний масштаб также даёт суперсэмплинг."
-                           FontSize="12" Foreground="{StaticResource MutedTextBrush}" Margin="0,6,0,0" TextWrapping="Wrap" />
               </StackPanel>
-
-              <StackPanel Margin="0,18,0,0">
-                <TextBlock Text="ОГРАНИЧЕНИЕ FPS" Style="{StaticResource FieldLabel}" />
-                <ComboBox x:Name="FrameLimitCombo" SelectionChanged="SettingChanged" />
-                <TextBlock Text="Требует совместимой среды выполнения. VSync может ограничить FPS ниже выбранного значения; работа игровой логики выше 60 FPS проверена не полностью."
-                           FontSize="12" Foreground="{StaticResource MutedTextBrush}" Margin="0,6,0,0" TextWrapping="Wrap" />
-              </StackPanel>
-
-              <Border Background="#222F4941" CornerRadius="8" Padding="14,10" Margin="0,18,0,0">
-                <Grid>
-                  <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                  </Grid.ColumnDefinitions>
-                  <StackPanel>
-                    <TextBlock Text="Вертикальная синхронизация" FontWeight="SemiBold" />
-                    <TextBlock Text="Синхронизирует вывод кадров; может ограничивать FPS ниже выбранного лимита."
-                               FontSize="12" Foreground="{StaticResource MutedTextBrush}" Margin="0,2,0,0" />
-                  </StackPanel>
-                  <CheckBox x:Name="VsyncCheck" Grid.Column="1" IsChecked="True"
-                            Checked="SettingChanged" Unchecked="SettingChanged" />
-                </Grid>
+              <Border x:Name="GameMissingPill" Visibility="Collapsed" Background="#E6150E0C"
+                      BorderBrush="{StaticResource GoldBrush}" BorderThickness="1" CornerRadius="10"
+                      Padding="14,8" MinWidth="240">
+                <StackPanel Orientation="Horizontal">
+                  <Ellipse Width="10" Height="10" Fill="{StaticResource DangerBrush}" Margin="0,0,10,0"
+                           VerticalAlignment="Center" />
+                  <TextBlock Text="Игра не найдена" FontSize="18" />
+                </StackPanel>
               </Border>
-            </StackPanel>
-          </Border>
+            </Grid>
 
-          <Border Style="{StaticResource Panel}" Margin="0,18,0,0">
-            <StackPanel>
-              <TextBlock Text="Быстрые профили" Style="{StaticResource SectionTitle}" />
-              <WrapPanel>
-                <Button Content="Оригинал" Tag="original" Click="PresetClicked" Style="{StaticResource PresetButton}" />
-                <Button Content="Сбалансированный" Tag="balanced" Click="PresetClicked" Style="{StaticResource PresetButton}" />
-                <Button Content="Улучшенный" Tag="enhanced" Click="PresetClicked" Style="{StaticResource PresetButton}" />
-                <Button Content="Ультра" Tag="ultra" Click="PresetClicked" Style="{StaticResource PresetButton}" />
-              </WrapPanel>
-              <TextBlock x:Name="PresetDescription" Text="Выберите профиль или настройте параметры вручную."
-                         FontSize="12" Foreground="{StaticResource MutedTextBrush}" Margin="0,14,0,0"
-                         TextWrapping="Wrap" />
-            </StackPanel>
-          </Border>
-        </StackPanel>
-
-        <StackPanel Grid.Row="1" Grid.Column="2">
-          <Border Style="{StaticResource Panel}">
-            <StackPanel>
-              <TextBlock Text="Расположение игры" Style="{StaticResource SectionTitle}" />
-              <TextBlock Text="ОРИГИНАЛЬНЫЕ ФАЙЛЫ ИГРЫ" Style="{StaticResource FieldLabel}" />
-              <Border Background="#99101819" BorderBrush="#445E706A" BorderThickness="1"
-                      CornerRadius="7" Padding="10,8">
-                <TextBlock x:Name="GamePathText" Text="Не выбрано" FontSize="12"
-                           Foreground="#FFD0D8D2" TextWrapping="Wrap" />
-              </Border>
-              <!-- Hidden (the launcher defaults to its own folder and the user
-                   can still edit the saved path in launcher-game-path.txt).
-                   The BrowseClicked code is kept in case it is re-enabled. -->
-              <Button Content="Выбрать папку игры…" Click="BrowseClicked"
-                      Style="{StaticResource SecondaryButton}" Margin="0,12,0,0"
-                      Visibility="Collapsed" />
-              <Button x:Name="ExtractButton" Content="Извлечь из ISO" Click="ExtractClicked"
-                      Style="{StaticResource SecondaryButton}" Margin="0,12,0,0" />
-              <TextBlock x:Name="ExtractionStatusText" FontSize="12"
-                         Foreground="{StaticResource MutedTextBrush}" Margin="0,10,0,0"
-                         TextWrapping="Wrap" Visibility="Collapsed" />
-            </StackPanel>
-          </Border>
-
-          <Border Style="{StaticResource Panel}" Margin="0,18,0,0">
-            <StackPanel>
-              <TextBlock Text="Фактическое качество" Style="{StaticResource SectionTitle}" />
-              <TextBlock x:Name="InternalResolutionText" Text="Внутреннее: 1280 × 720"
-                         FontSize="16" FontWeight="SemiBold" />
-              <TextBlock x:Name="OutputResolutionText" Text="На экране: 1280 × 720"
-                         FontSize="13" Foreground="{StaticResource MutedTextBrush}" Margin="0,5,0,0" />
-              <Separator Margin="0,14" Background="#445E706A" />
-              <TextBlock Text="Повышение внутреннего масштаба улучшает края геометрии и качество рендера, но заметно увеличивает расход видеопамяти."
-                         FontSize="12" Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap" />
-            </StackPanel>
-          </Border>
-        </StackPanel>
-      </Grid>
-      </ScrollViewer>
-
-      <!-- Advanced page content (hidden by default) -->
-      <ScrollViewer x:Name="AdvancedContent" Visibility="Collapsed"
-                    VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-        <Grid Margin="34,0,34,22">
-          <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="3*" />
-            <ColumnDefinition Width="18" />
-            <ColumnDefinition Width="2*" />
-          </Grid.ColumnDefinitions>
-
-          <!-- Keybinds -->
-          <StackPanel Grid.Column="0">
-            <Border Style="{StaticResource Panel}">
-              <StackPanel>
-                <TextBlock Text="Назначение клавиш" Style="{StaticResource SectionTitle}" />
-                <TextBlock Text="КЛАВИША ПК  →  КНОПКА XBOX" Style="{StaticResource FieldLabel}" />
-                <StackPanel x:Name="KeybindList" />
-                <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
-                  <Button Content="+ Добавить" Click="AddKeybindClicked"
-                          Style="{StaticResource SecondaryButton}" MinWidth="120" />
-                  <Button Content="Сбросить" Click="ResetKeybindsClicked"
-                          Style="{StaticResource SecondaryButton}" MinWidth="150" Margin="8,0,0,0" />
-                </StackPanel>
-                <TextBlock Text="Нажмите поле клавиши ПК, затем нажмите нужную клавишу или кнопку мыши (Esc — отмена). Изменения сохраняются в fable2_config.toml и применяются при следующем запуске игры."
-                           FontSize="12" Foreground="{StaticResource MutedTextBrush}" Margin="0,12,0,0"
-                           TextWrapping="Wrap" />
+            <Button Grid.Column="3" x:Name="HomeSettingsButton" Style="{StaticResource DarkButton}"
+                    Width="236" Height="72" Padding="10,0" Margin="0,0,14,0" Click="OpenSettingsClicked"
+                    AutomationProperties.Name="Настройки">
+              <StackPanel Orientation="Horizontal">
+                <Image Source="/Resources/V2/gear.png" Width="38" Height="38" Margin="0,0,12,0" />
+                <TextBlock Text="НАСТРОЙКИ" FontSize="21" FontWeight="Bold" VerticalAlignment="Center" />
               </StackPanel>
-            </Border>
+            </Button>
 
-            <Border Style="{StaticResource Panel}" Margin="0,18,0,0">
-              <StackPanel>
-                <TextBlock Text="Мышь" Style="{StaticResource SectionTitle}" />
-                <TextBlock Text="Управление камерой мышью" FontWeight="SemiBold" />
-                <TextBlock Text="Преобразует движение мыши в правый стик Xbox-геймпада. Отключите, чтобы курсор оставался свободным."
-                           FontSize="12" Foreground="{StaticResource MutedTextBrush}" Margin="0,3,0,0"
-                           TextWrapping="Wrap" />
-                <CheckBox x:Name="MouseLookCheck" IsChecked="True" Margin="0,10,0,0"
-                          Foreground="{StaticResource TextBrush}" />
-                <Grid Margin="0,16,0,0">
-                  <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="16" />
-                    <ColumnDefinition Width="Auto" />
-                  </Grid.ColumnDefinitions>
-                  <StackPanel>
-                    <TextBlock Text="ЧУВСТВИТЕЛЬНОСТЬ МЫШИ" Style="{StaticResource FieldLabel}" />
-                    <Slider x:Name="MouseSensitivitySlider" Minimum="1" Maximum="4096" Value="256"
-                            SmallChange="1" LargeChange="64"
-                            ValueChanged="MouseSensitivitySliderChanged" />
-                  </StackPanel>
-                  <TextBox x:Name="MouseSensitivityBox" Grid.Column="2" Width="64" Text="256"
-                           TextAlignment="Center" VerticalContentAlignment="Center"
-                           LostFocus="MouseSensitivityBoxLostFocus" />
-                </Grid>
-              </StackPanel>
-            </Border>
-          </StackPanel>
-
-          <!-- Patches -->
-          <StackPanel Grid.Column="2">
-            <Border Style="{StaticResource Panel}">
-              <StackPanel>
-                <TextBlock Text="Патчи" Style="{StaticResource SectionTitle}" />
-                <TextBlock Text="Патчи уровня рекомпиляции (перехваты промежуточного ассемблерного кода). Применяются при следующем запуске игры."
-                           FontSize="12" Foreground="{StaticResource MutedTextBrush}" Margin="0,0,0,14"
-                           TextWrapping="Wrap" />
-                <StackPanel x:Name="PatchList" />
-              </StackPanel>
-            </Border>
-
-            <Border Style="{StaticResource Panel}" Margin="0,18,0,0">
-              <StackPanel>
-                <TextBlock Text="Производительность" Style="{StaticResource SectionTitle}" />
-                <TextBlock Text="Пакетная обработка уступки выполнения в часто вызываемых функциях. 1 = оригинальное поведение; больше = меньше переключений контекста; 0 = никогда не уступать выполнение."
-                           FontSize="12" Foreground="{StaticResource MutedTextBrush}" Margin="0,0,0,10"
-                           TextWrapping="Wrap" />
-                <Grid>
-                  <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="16" />
-                    <ColumnDefinition Width="Auto" />
-                  </Grid.ColumnDefinitions>
-                  <StackPanel>
-                    <TextBlock Text="HOTFUNC: УСТУПАТЬ КАЖДЫЕ" Style="{StaticResource FieldLabel}" />
-                    <Slider x:Name="HotFuncYieldSlider" Minimum="0" Maximum="16" Value="1"
-                            SmallChange="1" LargeChange="1" IsSnapToTickEnabled="True" TickFrequency="1"
-                            ValueChanged="HotFuncYieldSliderChanged" />
-                  </StackPanel>
-                  <TextBox x:Name="HotFuncYieldBox" Grid.Column="2" Width="56" Text="1"
-                           TextAlignment="Center" VerticalContentAlignment="Center"
-                           LostFocus="HotFuncYieldBoxLostFocus" />
-                </Grid>
-              </StackPanel>
-            </Border>
-          </StackPanel>
-        </Grid>
-      </ScrollViewer>
-    </Grid>
-
-    <Border Grid.Row="2" Background="#E60A1012" BorderBrush="#33FFFFFF" BorderThickness="0,1,0,0">
-      <Grid Margin="34,18">
-        <Grid x:Name="MainFooter">
-          <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="*" />
-            <ColumnDefinition Width="Auto" />
-            <ColumnDefinition Width="12" />
-            <ColumnDefinition Width="Auto" />
-          </Grid.ColumnDefinitions>
-          <StackPanel VerticalAlignment="Center" Margin="0,0,12,0">
-            <TextBlock x:Name="StatusText" Text="Выберите папку оригинальной игры, содержащую default.xex и data."
-                       Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap" />
-            <CheckBox x:Name="DiagnosticCheck" Margin="0,8,0,0" IsChecked="False">
-              <TextBlock Text="Диагностический запуск: оставить лаунчер открытым и сохранить локальный отчёт (логи и настройки; без сохранений игры и без отправки файлов)."
-                         TextWrapping="Wrap" FontSize="11" />
-            </CheckBox>
-          </StackPanel>
-          <Button Grid.Column="1" Content="Сохранить настройки" Click="SaveClicked"
-                  Style="{StaticResource SecondaryButton}" MinWidth="125" />
-          <Button Grid.Column="3" x:Name="LaunchButton" Content="Играть в Fable II" Click="LaunchClicked"
-                  Style="{StaticResource PrimaryButton}" MinWidth="175" />
-        </Grid>
-        <Grid x:Name="AdvancedFooter" Visibility="Collapsed">
-          <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="*" />
-            <ColumnDefinition Width="Auto" />
-            <ColumnDefinition Width="12" />
-            <ColumnDefinition Width="Auto" />
-          </Grid.ColumnDefinitions>
-          <TextBlock x:Name="AdvancedStatusText" Text=""
-                     Foreground="{StaticResource MutedTextBrush}" VerticalAlignment="Center" TextWrapping="Wrap" />
-          <Button Grid.Column="1" Content="Сохранить расширенные настройки" Click="SaveAdvancedClicked"
-                  Style="{StaticResource SecondaryButton}" MinWidth="230" />
-          <Button Grid.Column="3" Content="Вернуться в лаунчер" Click="BackClicked"
-                  Style="{StaticResource PrimaryButton}" MinWidth="175" />
-        </Grid>
-      </Grid>
-    </Border>
-
-    <!-- Fullscreen extraction progress overlay: a centered progress bar, the file
-         being written, and a checklist where every top-level folder/file becomes a
-         progress checkbox. Shown during extraction, dismissed when it finishes. -->
-    <Border x:Name="ExtractionOverlay" Grid.Row="0" Grid.RowSpan="3" Background="#F5070C0E"
-            Visibility="Collapsed">
-      <Grid Margin="44,36">
-        <Grid.RowDefinitions>
-          <RowDefinition Height="Auto" />
-          <RowDefinition Height="*" />
-          <RowDefinition Height="Auto" />
-          <RowDefinition Height="Auto" />
-        </Grid.RowDefinitions>
-
-        <StackPanel Grid.Row="0" HorizontalAlignment="Center">
-          <TextBlock Text="Извлечение из ISO" FontFamily="Georgia" FontSize="30" FontWeight="Bold"
-                     Foreground="#FFFFD888" HorizontalAlignment="Center" />
-          <TextBlock x:Name="ExtractionPhaseText" Text="Запуск…" FontSize="14"
-                     Foreground="#FFC69A46" Margin="0,8,0,0" HorizontalAlignment="Center" />
-        </StackPanel>
-
-        <Button Grid.Row="0" x:Name="StopButton" Content="Остановить" Click="StopClicked"
-                Style="{StaticResource SecondaryButton}" HorizontalAlignment="Right"
-                VerticalAlignment="Top" MinWidth="110" Foreground="#FFD98B8B" />
-
-        <StackPanel Grid.Row="1" VerticalAlignment="Center" HorizontalAlignment="Center"
-                    Width="520" MaxWidth="680">
-          <ProgressBar x:Name="ExtractionProgressBar" Height="16" Minimum="0" Maximum="100"
-                       Foreground="#FF3FBF7F" Background="#1FFFFFFF" BorderBrush="#44FFFFFF"
-                       BorderThickness="1" />
-          <Grid Margin="0,10,0,0">
-            <TextBlock x:Name="ExtractionPercentText" Text="0%" FontSize="22" FontWeight="SemiBold"
-                       Foreground="#FFB9D6C7" HorizontalAlignment="Left" />
-            <TextBlock x:Name="ExtractionBytesText" Text="0 / 0 MB" FontSize="13"
-                       Foreground="{StaticResource MutedTextBrush}" HorizontalAlignment="Right"
-                       VerticalAlignment="Bottom" />
+            <Button Grid.Column="4" x:Name="LaunchButton" Content="ИГРАТЬ" Style="{StaticResource GoldButton}"
+                    Width="222" Height="82" FontSize="36" Click="LaunchClicked" />
           </Grid>
+        </Border>
 
-          <!-- Shown when the extracted default.xex is not a supported version:
-               offers to continue the extraction (keeping the XEX) or cancel. -->
-          <Border x:Name="HashPrompt" Margin="0,24,0,0" Background="#40241212"
-                  BorderBrush="#FF9E4A4A" BorderThickness="1" CornerRadius="10"
-                  Padding="18,14" Visibility="Collapsed">
-            <StackPanel>
-              <TextBlock x:Name="HashPromptText" FontSize="14" Foreground="#FFE8C9A8"
-                         TextWrapping="Wrap" HorizontalAlignment="Center" />
-              <!-- Large, easy-to-reach way to back out (besides the small Stop
-                   button in the top corner). -->
-              <Button x:Name="CancelButton" Content="Отмена" Click="CancelClicked"
-                      Style="{StaticResource SecondaryButton}" Margin="0,16,0,0"
-                      MinWidth="260" HorizontalAlignment="Center" Padding="24,15"
-                      FontSize="17" />
-              <Button x:Name="ExtractAnywaysButton" Content="Всё равно извлечь"
-                      Click="ExtractAnywaysClicked" Style="{StaticResource SecondaryButton}"
-                      Margin="0,10,0,0" MinWidth="150" HorizontalAlignment="Center"
-                      Foreground="#FFE06666" Background="#553A1414" BorderBrush="#FF9E4A4A"
-                      Padding="16,8" />
+        <!-- Game not found -->
+        <Grid x:Name="NotFoundOverlay" Visibility="Collapsed" Margin="0,0,0,130">
+          <Rectangle Fill="#66000000" />
+          <Border Style="{StaticResource Dialog}" Width="845" Height="265" Margin="0,170,0,0"
+                  HorizontalAlignment="Center" VerticalAlignment="Top">
+            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+              <TextBlock Text="Игра не найдена" FontFamily="{StaticResource HeadingFont}" FontSize="42"
+                         FontWeight="Bold" Foreground="{StaticResource GoldLightBrush}" HorizontalAlignment="Center" />
+              <TextBlock Text="Укажите папку с оригинальными файлами Fable II GOTY" FontSize="21"
+                         Foreground="{StaticResource TextBrush}" HorizontalAlignment="Center" Margin="0,18,0,26" />
+              <Button Content="ВЫБРАТЬ ПАПКУ" Style="{StaticResource GoldButton}" Width="306" Height="58"
+                      FontSize="22" Click="BrowseClicked" />
             </StackPanel>
           </Border>
-        </StackPanel>
+        </Grid>
+      </Grid>
 
-        <TextBlock x:Name="ExtractionFileText" Grid.Row="2" Margin="0,18,0,0" FontSize="14"
-                   Foreground="#FFD0D8D2" HorizontalAlignment="Center"
-                   TextTrimming="CharacterEllipsis" Text="Ожидание…" />
+      <!-- ===================== SETTINGS ===================== -->
+      <Grid x:Name="SettingsPage" Visibility="Collapsed">
+        <Image Source="/Resources/V2/settings-background.jpg" Stretch="UniformToFill" />
+        <Rectangle Fill="#A6000000" />
 
-        <Border Grid.Row="3" Margin="0,18,0,0" Background="#220E1A17" BorderBrush="#335E706A"
-                BorderThickness="1" CornerRadius="10" Padding="16,12">
-          <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="232">
-            <StackPanel x:Name="ExtractionFolderList" />
-          </ScrollViewer>
+        <!-- Sidebar -->
+        <Border Width="360" HorizontalAlignment="Left" Background="{StaticResource SidebarBrush}"
+                BorderBrush="#FF5A4128" BorderThickness="0,0,1,0">
+          <Grid Margin="28,0,28,16">
+            <Grid.RowDefinitions>
+              <RowDefinition Height="Auto" />
+              <RowDefinition Height="*" />
+              <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <StackPanel Margin="8,46,0,0">
+              <TextBlock Text="НАСТРОЙКИ" FontFamily="{StaticResource HeadingFont}" FontSize="40" FontWeight="Bold"
+                         Foreground="{StaticResource GoldLightBrush}" />
+              <TextBlock Text="FABLE II  •  RECOMP LAUNCHER" FontSize="16" Foreground="{StaticResource MutedTextBrush}"
+                         Margin="2,12,0,0" />
+              <Border Style="{StaticResource Separator}" Margin="0,20,0,26" />
+            </StackPanel>
+            <StackPanel Grid.Row="1">
+              <RadioButton x:Name="NavGraphics" Content="Графика" GroupName="Nav" Tag="graphics"
+                           Style="{StaticResource NavButton}" Checked="NavChecked" IsChecked="True" />
+              <RadioButton x:Name="NavControls" Content="Управление" GroupName="Nav" Tag="controls"
+                           Style="{StaticResource NavButton}" Checked="NavChecked" />
+              <RadioButton x:Name="NavGame" Content="Игра" GroupName="Nav" Tag="game"
+                           Style="{StaticResource NavButton}" Checked="NavChecked" />
+              <RadioButton x:Name="NavOptimization" Content="Оптимизация" GroupName="Nav" Tag="optimization"
+                           Style="{StaticResource NavButton}" Checked="NavChecked" />
+              <RadioButton x:Name="NavFiles" Content="Файлы игры" GroupName="Nav" Tag="files"
+                           Style="{StaticResource NavButton}" Checked="NavChecked" />
+            </StackPanel>
+            <StackPanel Grid.Row="2">
+              <Border Style="{StaticResource Separator}" Margin="10,0,0,22" />
+              <Button Content="Что нового?" Style="{StaticResource LinkButton}" Margin="22,0,0,0"
+                      HorizontalAlignment="Left" FontSize="20" Click="WhatsNewClicked" />
+              <Button Content="Проект на GitHub" Style="{StaticResource LinkButton}" Margin="22,10,0,0"
+                      HorizontalAlignment="Left" FontSize="18" Foreground="{StaticResource MutedTextBrush}"
+                      Click="ProjectLinkClicked" ToolTip="https://github.com/deadtools/-Fable-2-Recomp" />
+              <Border Style="{StaticResource Separator}" Margin="0,24,0,12" />
+              <TextBlock x:Name="UnsavedIndicator" Text="●  Есть несохранённые изменения" FontSize="16"
+                         Foreground="{StaticResource WarningBrush}" Margin="8,0,0,10" Visibility="Hidden" />
+              <Button x:Name="SaveButton" Content="СОХРАНИТЬ" Style="{StaticResource GoldButton}"
+                      Height="56" Margin="8,0,0,10" Click="SaveClicked" />
+              <Button Content="←  Назад" Style="{StaticResource DarkButton}" Height="40" Padding="0"
+                      Margin="8,0,0,0" Click="BackClicked" />
+            </StackPanel>
+          </Grid>
+        </Border>
+
+        <!-- Content panel -->
+        <Border Margin="390,85,45,58" Background="{StaticResource PanelBrush}" BorderBrush="#FF5A4128"
+                BorderThickness="1" CornerRadius="8">
+          <Grid Margin="26,20,4,16">
+            <Grid.RowDefinitions>
+              <RowDefinition Height="Auto" />
+              <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+            <StackPanel Margin="0,0,22,0">
+              <TextBlock x:Name="SectionTitle" Text="Графика" Style="{StaticResource PageTitle}" />
+              <TextBlock x:Name="SectionSubtitle" Text="Разрешение экрана, качество изображения и плавность"
+                         FontSize="19" Foreground="{StaticResource TextBrush}" Margin="4,10,0,0" />
+              <Border Style="{StaticResource Separator}" Margin="0,18,0,0" />
+            </StackPanel>
+
+            <Grid Grid.Row="1" Margin="0,22,0,0">
+
+              <!-- ========== GRAPHICS ========== -->
+              <ScrollViewer x:Name="SectionGraphics" VerticalScrollBarVisibility="Auto" Padding="0,0,18,0">
+                <StackPanel>
+                  <Grid>
+                    <Grid.ColumnDefinitions>
+                      <ColumnDefinition Width="*" />
+                      <ColumnDefinition Width="24" />
+                      <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel>
+                      <TextBlock Text="ЭКРАН" Style="{StaticResource SectionLabel}" Margin="10,0,0,10" />
+                      <Border Style="{StaticResource Card}">
+                        <StackPanel>
+                          <TextBlock Text="РАЗРЕШЕНИЕ" Style="{StaticResource FieldLabel}" />
+                          <ComboBox x:Name="ResolutionCombo" SelectionChanged="SettingChanged">
+                            <ComboBoxItem Tag="720p">1280 × 720</ComboBoxItem>
+                            <ComboBoxItem Tag="1080p">1920 × 1080</ComboBoxItem>
+                            <ComboBoxItem Tag="1440p">2560 × 1440</ComboBoxItem>
+                            <ComboBoxItem Tag="4k">3840 × 2160</ComboBoxItem>
+                          </ComboBox>
+                          <TextBlock Text="РЕЖИМ ЭКРАНА" Style="{StaticResource FieldLabel}" Margin="0,18,0,8" />
+                          <ComboBox x:Name="DisplayModeCombo" SelectionChanged="SettingChanged">
+                            <ComboBoxItem Tag="windowed">Оконный</ComboBoxItem>
+                            <ComboBoxItem Tag="borderless">Полноэкранный без рамки</ComboBoxItem>
+                            <ComboBoxItem Tag="exclusive">Эксклюзивный полноэкранный</ComboBoxItem>
+                          </ComboBox>
+                          <TextBlock Text="ЛИМИТ FPS" Style="{StaticResource FieldLabel}" Margin="0,18,0,8" />
+                          <ComboBox x:Name="FrameLimitCombo" SelectionChanged="SettingChanged" />
+                          <Grid Margin="0,26,0,0">
+                            <Grid.ColumnDefinitions>
+                              <ColumnDefinition Width="*" />
+                              <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Вертикальная синхронизация" Style="{StaticResource BodyText}"
+                                       VerticalAlignment="Center" />
+                            <CheckBox x:Name="VsyncCheck" Grid.Column="1" Style="{StaticResource ToggleSwitch}"
+                                      IsChecked="True" Checked="SettingChanged" Unchecked="SettingChanged"
+                                      AutomationProperties.Name="Вертикальная синхронизация" />
+                          </Grid>
+                        </StackPanel>
+                      </Border>
+                    </StackPanel>
+                    <StackPanel Grid.Column="2">
+                      <TextBlock Text="КАЧЕСТВО" Style="{StaticResource SectionLabel}" Margin="10,0,0,10" />
+                      <Border Style="{StaticResource Card}">
+                        <StackPanel>
+                          <TextBlock Text="МАСШТАБ РЕНДЕРА" Style="{StaticResource FieldLabel}" />
+                          <ComboBox x:Name="RenderScaleCombo" SelectionChanged="SettingChanged">
+                            <ComboBoxItem Tag="1">1× — Нативные 720p</ComboBoxItem>
+                            <ComboBoxItem Tag="2">2× — Нативные 1440p</ComboBoxItem>
+                            <ComboBoxItem Tag="3">3× — Нативные 4K</ComboBoxItem>
+                            <ComboBoxItem Tag="4">4× — 5120 × 2880</ComboBoxItem>
+                          </ComboBox>
+                          <TextBlock Text="ФИЛЬТРАЦИЯ ТЕКСТУР" Style="{StaticResource FieldLabel}" Margin="0,18,0,8" />
+                          <ComboBox x:Name="AnisotropicCombo" SelectionChanged="SettingChanged">
+                            <ComboBoxItem Tag="-1">Как в игре</ComboBoxItem>
+                            <ComboBoxItem Tag="1">1× анизотропная</ComboBoxItem>
+                            <ComboBoxItem Tag="2">2× анизотропная</ComboBoxItem>
+                            <ComboBoxItem Tag="3">4× анизотропная</ComboBoxItem>
+                            <ComboBoxItem Tag="4">8× анизотропная</ComboBoxItem>
+                            <ComboBoxItem Tag="5">16× анизотропная</ComboBoxItem>
+                          </ComboBox>
+                          <TextBlock Text="СГЛАЖИВАНИЕ" Style="{StaticResource FieldLabel}" Margin="0,18,0,8" />
+                          <ComboBox x:Name="AntiAliasingCombo" SelectionChanged="SettingChanged">
+                            <ComboBoxItem Tag="none">Выкл. — сглаживание игры</ComboBoxItem>
+                            <ComboBoxItem Tag="fxaa">FXAA</ComboBoxItem>
+                            <ComboBoxItem Tag="fxaa_extreme">FXAA Экстремальное</ComboBoxItem>
+                          </ComboBox>
+                          <Grid Margin="0,26,0,0">
+                            <Grid.ColumnDefinitions>
+                              <ColumnDefinition Width="*" />
+                              <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Отключить размытие в движении" Style="{StaticResource BodyText}"
+                                       VerticalAlignment="Center" />
+                            <CheckBox x:Name="MotionBlurCheck" Grid.Column="1" Style="{StaticResource ToggleSwitch}"
+                                      Checked="SettingChanged" Unchecked="SettingChanged"
+                                      AutomationProperties.Name="Отключить размытие в движении" />
+                          </Grid>
+                        </StackPanel>
+                      </Border>
+                    </StackPanel>
+                  </Grid>
+                  <Border Style="{StaticResource InfoBar}" Margin="8,26,0,0">
+                    <Grid>
+                      <TextBlock Text="Фактическое качество" FontSize="20" FontWeight="Bold"
+                                 Foreground="{StaticResource GoldTextBrush}" VerticalAlignment="Center" />
+                      <TextBlock x:Name="QualitySummaryText" Text="2560 × 1440  →  1920 × 1080" FontSize="21"
+                                 HorizontalAlignment="Right" VerticalAlignment="Center" />
+                    </Grid>
+                  </Border>
+                  <TextBlock Text="Слева — внутреннее разрешение рендера, справа — разрешение на экране. Параметры применяются при следующем запуске игры."
+                             Style="{StaticResource HintText}" Margin="10,12,0,0" />
+                </StackPanel>
+              </ScrollViewer>
+
+              <!-- ========== CONTROLS ========== -->
+              <Grid x:Name="SectionControls" Visibility="Collapsed" Margin="0,0,22,0">
+                <Grid.RowDefinitions>
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+                <UniformGrid Rows="1" Columns="4" Margin="6,0,0,0">
+                  <RadioButton x:Name="TabKeyboard" Content="Клавиатура" GroupName="ControlTabs" Tag="keyboard"
+                               Style="{StaticResource TabButton}" Checked="ControlTabChecked" IsChecked="True" />
+                  <RadioButton Content="Мышь" GroupName="ControlTabs" Tag="mouse"
+                               Style="{StaticResource TabButton}" Checked="ControlTabChecked" />
+                  <RadioButton Content="PlayStation" GroupName="ControlTabs" Tag="playstation"
+                               Style="{StaticResource TabButton}" Checked="ControlTabChecked" />
+                  <RadioButton Content="Xbox" GroupName="ControlTabs" Tag="xbox"
+                               Style="{StaticResource TabButton}" Checked="ControlTabChecked" Margin="0" />
+                </UniformGrid>
+
+                <!-- Keyboard -->
+                <Grid x:Name="ControlsKeyboard" Grid.Row="1" Margin="6,16,0,0">
+                  <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                  </Grid.RowDefinitions>
+                  <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="Тип подсказок в игре:" FontSize="18" VerticalAlignment="Center" Margin="4,0,12,0" />
+                    <ComboBox x:Name="ControllerModeCombo" Width="260" Height="40" FontSize="18"
+                              SelectionChanged="ControllerModeChanged" AutomationProperties.Name="Тип управления">
+                      <ComboBoxItem Tag="xbox">Xbox 360</ComboBoxItem>
+                      <ComboBoxItem Tag="playstation">PlayStation</ComboBoxItem>
+                      <ComboBoxItem Tag="keyboard">Клавиатура/Мышь</ComboBoxItem>
+                    </ComboBox>
+                    <TextBlock Text="•   Назначения применяются после запуска игры" FontSize="18"
+                               VerticalAlignment="Center" Margin="16,0,0,0" Foreground="{StaticResource MutedTextBrush}" />
+                  </StackPanel>
+                  <ScrollViewer Grid.Row="1" Margin="0,14,0,0" VerticalScrollBarVisibility="Auto" Padding="0,0,12,0">
+                    <Grid>
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="40" />
+                        <ColumnDefinition Width="*" />
+                      </Grid.ColumnDefinitions>
+                      <StackPanel x:Name="KeybindListLeft" />
+                      <StackPanel x:Name="KeybindListRight" Grid.Column="2" />
+                    </Grid>
+                  </ScrollViewer>
+                  <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,14,0,0">
+                    <Button Content="+ Добавить" Style="{StaticResource DarkButton}" Width="200" Height="40"
+                            Padding="0" Click="AddKeybindClicked" />
+                    <Button Content="Сбросить" Style="{StaticResource DarkButton}" Width="188" Height="40"
+                            Padding="0" Margin="12,0,0,0" Click="ResetKeybindsClicked" />
+                    <TextBlock Text="Кликните по клавише для нового назначения. Esc — отмена." FontSize="17"
+                               Foreground="{StaticResource MutedTextBrush}" VerticalAlignment="Center" Margin="22,0,0,0" />
+                  </StackPanel>
+                </Grid>
+
+                <!-- Mouse -->
+                <StackPanel x:Name="ControlsMouse" Grid.Row="1" Margin="6,22,0,0" Visibility="Collapsed">
+                  <Border Style="{StaticResource Card}">
+                    <Grid>
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                      </Grid.ColumnDefinitions>
+                      <StackPanel>
+                        <TextBlock Text="Управление камерой мышью" FontSize="20" FontWeight="Bold" />
+                        <TextBlock Text="Движение мыши преобразуется в движение правого стика. Отключите, чтобы курсор оставался свободным."
+                                   Style="{StaticResource HintText}" Margin="0,6,0,0" />
+                      </StackPanel>
+                      <CheckBox x:Name="MouseLookCheck" Grid.Column="1" Style="{StaticResource ToggleSwitch}"
+                                Checked="SettingChanged" Unchecked="SettingChanged"
+                                AutomationProperties.Name="Управление камерой мышью" />
+                    </Grid>
+                  </Border>
+                  <Border Style="{StaticResource Card}" Margin="0,16,0,0">
+                    <StackPanel>
+                      <Grid>
+                        <TextBlock Text="ЧУВСТВИТЕЛЬНОСТЬ МЫШИ" Style="{StaticResource FieldLabel}" VerticalAlignment="Center" />
+                        <TextBox x:Name="MouseSensitivityBox" Width="96" Height="38" Text="256" HorizontalAlignment="Right"
+                                 TextAlignment="Center" LostFocus="MouseSensitivityBoxLostFocus" />
+                      </Grid>
+                      <Slider x:Name="MouseSensitivitySlider" Minimum="1" Maximum="4096" Value="256"
+                              SmallChange="1" LargeChange="64" Margin="0,6,0,0"
+                              ValueChanged="MouseSensitivitySliderChanged" />
+                      <Grid>
+                        <TextBlock Text="1" FontSize="16" Foreground="{StaticResource MutedTextBrush}" />
+                        <TextBlock Text="4096" FontSize="16" Foreground="{StaticResource MutedTextBrush}"
+                                   HorizontalAlignment="Right" />
+                      </Grid>
+                    </StackPanel>
+                  </Border>
+                  <TextBlock Text="НАЗНАЧЕНИЯ КНОПОК МЫШИ" Style="{StaticResource SectionLabel}" Margin="10,22,0,10" />
+                  <Border Style="{StaticResource Card}" Padding="24,14">
+                    <StackPanel>
+                      <Grid Margin="0,4">
+                        <TextBlock Text="Левая кнопка" Style="{StaticResource BodyText}" VerticalAlignment="Center" />
+                        <ComboBox x:Name="MouseLmbCombo" Tag="LMB" Width="320" Height="42" FontSize="18"
+                                  HorizontalAlignment="Right" SelectionChanged="MouseButtonComboChanged" />
+                      </Grid>
+                      <Grid Margin="0,4">
+                        <TextBlock Text="Средняя кнопка" Style="{StaticResource BodyText}" VerticalAlignment="Center" />
+                        <ComboBox x:Name="MouseMmbCombo" Tag="MMB" Width="320" Height="42" FontSize="18"
+                                  HorizontalAlignment="Right" SelectionChanged="MouseButtonComboChanged" />
+                      </Grid>
+                      <Grid Margin="0,4">
+                        <TextBlock Text="Правая кнопка" Style="{StaticResource BodyText}" VerticalAlignment="Center" />
+                        <ComboBox x:Name="MouseRmbCombo" Tag="RMB" Width="320" Height="42" FontSize="18"
+                                  HorizontalAlignment="Right" SelectionChanged="MouseButtonComboChanged" />
+                      </Grid>
+                    </StackPanel>
+                  </Border>
+                </StackPanel>
+
+                <!-- PlayStation -->
+                <StackPanel x:Name="ControlsPlayStation" Grid.Row="1" Margin="6,22,0,0" Visibility="Collapsed">
+                  <Border Style="{StaticResource Card}">
+                    <Grid>
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                      </Grid.ColumnDefinitions>
+                      <StackPanel>
+                        <TextBlock Text="Использовать значки геймпада PlayStation (DualShock)" FontSize="20" FontWeight="Bold" />
+                        <TextBlock Text="Заменяет подсказки игровых кнопок Xbox на PlayStation (✕ ○ □ △, L1/L2/R1/R2), не меняя игровой ввод."
+                                   Style="{StaticResource HintText}" Margin="0,6,0,0" />
+                      </StackPanel>
+                      <CheckBox x:Name="PsPromptsCheck" Grid.Column="1" Style="{StaticResource ToggleSwitch}"
+                                Click="PsPromptsClicked" AutomationProperties.Name="Значки PlayStation" />
+                    </Grid>
+                  </Border>
+                  <Border Style="{StaticResource Card}" Margin="0,16,0,0">
+                    <StackPanel>
+                      <TextBlock Text="Что происходит при переключении" FontSize="20" FontWeight="Bold"
+                                 Foreground="{StaticResource GoldTextBrush}" Margin="0,0,0,12" />
+                      <TextBlock Text="•  Перед первой заменой сохраняется резервная копия оригинальных значков." Style="{StaticResource BodyText}" Margin="0,0,0,8" />
+                      <TextBlock Text="•  При отключении возвращаются исходные ресурсы." Style="{StaticResource BodyText}" Margin="0,0,0,8" />
+                      <TextBlock Text="•  Повторное включение не создаёт каскад резервных копий." Style="{StaticResource BodyText}" />
+                    </StackPanel>
+                  </Border>
+                  <Border Style="{StaticResource InfoBar}" Margin="0,16,0,0">
+                    <StackPanel Orientation="Horizontal">
+                      <TextBlock Text="Проверка ресурсов" FontSize="19" FontWeight="Bold"
+                                 Foreground="{StaticResource GoldTextBrush}" Margin="0,0,24,0" />
+                      <TextBlock x:Name="PromptResourceText" Text="" FontSize="19" />
+                    </StackPanel>
+                  </Border>
+                </StackPanel>
+
+                <!-- Xbox -->
+                <StackPanel x:Name="ControlsXbox" Grid.Row="1" Margin="6,22,0,0" Visibility="Collapsed">
+                  <Border Style="{StaticResource Card}">
+                    <Grid>
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                      </Grid.ColumnDefinitions>
+                      <StackPanel>
+                        <TextBlock Text="Использовать оригинальные значки Xbox 360" FontSize="20" FontWeight="Bold" />
+                        <TextBlock Text="Оригинальные кнопки Xbox 360. Сохранённые игровые назначения не меняются."
+                                   Style="{StaticResource HintText}" Margin="0,6,0,0" />
+                      </StackPanel>
+                      <CheckBox x:Name="XboxPromptsCheck" Grid.Column="1" Style="{StaticResource ToggleSwitch}"
+                                Click="XboxPromptsClicked" AutomationProperties.Name="Значки Xbox 360" />
+                    </Grid>
+                  </Border>
+                  <TextBlock x:Name="ControllerModeHelpText" Text="" Style="{StaticResource HintText}" Margin="10,16,0,0" />
+                  <TextBlock Text="Чтобы сменить значки, включите PlayStation или выберите «Клавиатура/Мышь» на вкладке «Клавиатура»."
+                             Style="{StaticResource HintText}" Margin="10,10,0,0" />
+                </StackPanel>
+              </Grid>
+
+              <!-- ========== GAME ========== -->
+              <Grid x:Name="SectionGame" Visibility="Collapsed" Margin="0,0,22,0">
+                <Grid.RowDefinitions>
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+                <StackPanel Orientation="Horizontal" Margin="6,0,0,0">
+                  <RadioButton Content="Скорость и профили" GroupName="GameTabs" Tag="speed" Width="318"
+                               Style="{StaticResource TabButton}" Checked="GameTabChecked" IsChecked="True" />
+                  <RadioButton Content="Игровые патчи" GroupName="GameTabs" Tag="patches" Width="318"
+                               Style="{StaticResource TabButton}" Checked="GameTabChecked" />
+                </StackPanel>
+
+                <ScrollViewer x:Name="GameSpeedTab" Grid.Row="1" VerticalScrollBarVisibility="Auto" Margin="6,24,0,0">
+                  <StackPanel Margin="0,0,10,0">
+                    <Grid>
+                      <TextBlock Text="СКОРОСТЬ ИГРЫ" Style="{StaticResource SectionLabel}" Margin="10,0,0,0" />
+                      <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                        <Button Content="Сбросить до 1,0×" Style="{StaticResource LinkButton}" FontSize="16"
+                                Foreground="{StaticResource MutedTextBrush}" VerticalAlignment="Center"
+                                Margin="0,0,20,0" Click="ResetGameSpeedClicked" />
+                        <TextBlock x:Name="GameSpeedValueText" Text="1,0×" FontSize="22" FontWeight="Bold"
+                                   Foreground="{StaticResource GoldLightBrush}" />
+                      </StackPanel>
+                    </Grid>
+                    <Slider x:Name="GameSpeedSlider" Minimum="1" Maximum="20" Value="10" Margin="10,10,0,0"
+                            TickFrequency="1" IsSnapToTickEnabled="True" SmallChange="1" LargeChange="1"
+                            AutomationProperties.Name="Скорость игры" ValueChanged="GameSpeedChanged" />
+                    <Grid Margin="10,0,0,0">
+                      <TextBlock x:Name="GameSpeedMinText" Text="0,1×" FontSize="16" Foreground="{StaticResource MutedTextBrush}" />
+                      <TextBlock x:Name="GameSpeedMaxText" Text="2,0×" FontSize="16" Foreground="{StaticResource MutedTextBrush}"
+                                 HorizontalAlignment="Right" />
+                    </Grid>
+                    <Border Style="{StaticResource InfoBar}" Margin="4,20,0,0">
+                      <Grid>
+                        <Grid.ColumnDefinitions>
+                          <ColumnDefinition Width="168" />
+                          <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="ВНИМАНИЕ" FontSize="18" FontWeight="Bold" Foreground="{StaticResource GoldTextBrush}" />
+                        <TextBlock Grid.Column="1" Text="Изменение скорости применяется при следующем запуске. Возможна рассинхронизация звука и роликов; нужна сборка игры с поддержкой изменения скорости."
+                                   Style="{StaticResource BodyText}" />
+                      </Grid>
+                    </Border>
+                    <TextBlock Text="БЫСТРЫЕ ПРОФИЛИ" Style="{StaticResource SectionLabel}" Margin="10,34,0,16" />
+                    <UniformGrid Rows="1" Columns="4" Margin="4,0,0,0">
+                      <StackPanel Margin="0,0,12,0">
+                        <RadioButton x:Name="PresetOriginal" Content="Оригинал" Tag="original" GroupName="Presets"
+                                     Style="{StaticResource PresetToggle}" Click="PresetClicked" />
+                        <TextBlock Text="Базовые параметры" FontSize="16" Foreground="{StaticResource MutedTextBrush}"
+                                   HorizontalAlignment="Center" Margin="0,14,0,0" />
+                      </StackPanel>
+                      <StackPanel Margin="0,0,12,0">
+                        <RadioButton x:Name="PresetBalanced" Content="Сбалансированный" Tag="balanced" GroupName="Presets"
+                                     Style="{StaticResource PresetToggle}" Click="PresetClicked" />
+                        <TextBlock Text="Баланс качества" FontSize="16" Foreground="{StaticResource MutedTextBrush}"
+                                   HorizontalAlignment="Center" Margin="0,14,0,0" />
+                      </StackPanel>
+                      <StackPanel Margin="0,0,12,0">
+                        <RadioButton x:Name="PresetEnhanced" Content="Улучшенный" Tag="enhanced" GroupName="Presets"
+                                     Style="{StaticResource PresetToggle}" Click="PresetClicked" />
+                        <TextBlock Text="Лучшее качество" FontSize="16" Foreground="{StaticResource MutedTextBrush}"
+                                   HorizontalAlignment="Center" Margin="0,14,0,0" />
+                      </StackPanel>
+                      <StackPanel>
+                        <RadioButton x:Name="PresetUltra" Content="Ультра" Tag="ultra" GroupName="Presets"
+                                     Style="{StaticResource PresetToggle}" Click="PresetClicked" />
+                        <TextBlock Text="Максимум графики" FontSize="16" Foreground="{StaticResource MutedTextBrush}"
+                                   HorizontalAlignment="Center" Margin="0,14,0,0" />
+                      </StackPanel>
+                    </UniformGrid>
+                    <TextBlock x:Name="PresetDescription" Text="Пресет меняет несколько параметров графики. После ручной настройки состояние — «Пользовательский»."
+                               Style="{StaticResource HintText}" Margin="10,26,0,0" />
+                  </StackPanel>
+                </ScrollViewer>
+
+                <StackPanel x:Name="GamePatchesTab" Grid.Row="1" Margin="6,24,0,0" Visibility="Collapsed">
+                  <Border Style="{StaticResource Card}" Margin="0,0,0,14">
+                    <Grid>
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                      </Grid.ColumnDefinitions>
+                      <StackPanel>
+                        <TextBlock Text="Разблокировать предметы с сайта" FontSize="20" FontWeight="Bold" />
+                        <TextBlock Text="Выдача предметов, ранее получавшихся через сайт Fable II, при загрузке сохранения."
+                                   Style="{StaticResource HintText}" Margin="0,6,0,0" />
+                      </StackPanel>
+                      <CheckBox x:Name="UnlockWebsiteCheck" Grid.Column="1" Style="{StaticResource ToggleSwitch}"
+                                Checked="SettingChanged" Unchecked="SettingChanged"
+                                AutomationProperties.Name="Разблокировать предметы с сайта" />
+                    </Grid>
+                  </Border>
+                  <Border Style="{StaticResource Card}" Margin="0,0,0,14">
+                    <Grid>
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                      </Grid.ColumnDefinitions>
+                      <StackPanel>
+                        <TextBlock Text="Разблокировать коллекционное издание" FontSize="20" FontWeight="Bold" />
+                        <TextBlock Text="Открывает содержимое сундука коллекционного издания при загрузке сохранения."
+                                   Style="{StaticResource HintText}" Margin="0,6,0,0" />
+                      </StackPanel>
+                      <CheckBox x:Name="UnlockCeCheck" Grid.Column="1" Style="{StaticResource ToggleSwitch}"
+                                Checked="SettingChanged" Unchecked="SettingChanged"
+                                AutomationProperties.Name="Разблокировать коллекционное издание" />
+                    </Grid>
+                  </Border>
+                  <Border Style="{StaticResource Card}">
+                    <Grid>
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                      </Grid.ColumnDefinitions>
+                      <StackPanel>
+                        <TextBlock Text="Пропускать вступительные ролики" FontSize="20" FontWeight="Bold" />
+                        <TextBlock Text="Пропускает ролики с логотипами Microsoft и Lionhead при старте."
+                                   Style="{StaticResource HintText}" Margin="0,6,0,0" />
+                      </StackPanel>
+                      <CheckBox x:Name="SkipIntroCheck" Grid.Column="1" Style="{StaticResource ToggleSwitch}"
+                                Checked="SettingChanged" Unchecked="SettingChanged"
+                                AutomationProperties.Name="Пропускать вступительные ролики" />
+                    </Grid>
+                  </Border>
+                  <TextBlock Text="Патчи применяются при следующем запуске игры." Style="{StaticResource HintText}" Margin="10,18,0,0" />
+                </StackPanel>
+              </Grid>
+
+              <!-- ========== OPTIMIZATION ========== -->
+              <Grid x:Name="SectionOptimization" Visibility="Collapsed" Margin="0,0,22,0">
+                <Grid.RowDefinitions>
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+                <StackPanel Orientation="Horizontal" Margin="6,0,0,0">
+                  <RadioButton Content="Совместимость" GroupName="OptTabs" Tag="compat" Width="315"
+                               Style="{StaticResource TabButton}" Checked="OptTabChecked" IsChecked="True" />
+                  <RadioButton Content="Производительность" GroupName="OptTabs" Tag="perf" Width="315"
+                               Style="{StaticResource TabButton}" Checked="OptTabChecked" />
+                  <RadioButton Content="Экспериментально" GroupName="OptTabs" Tag="experimental" Width="315"
+                               Style="{StaticResource TabButton}" Checked="OptTabChecked" />
+                </StackPanel>
+
+                <ScrollViewer x:Name="OptCompatTab" Grid.Row="1" VerticalScrollBarVisibility="Auto" Margin="6,24,0,0">
+                  <StackPanel Margin="0,0,10,0">
+                    <TextBlock Text="ТЕКСТУРЫ ГЕРОЯ И СОБАКИ" Style="{StaticResource SectionLabel}" Margin="6,0,0,12" />
+                    <ComboBox x:Name="TextureModeCombo" SelectionChanged="TextureModeChanged" Height="56" />
+                    <TextBlock x:Name="TextureModeHelpText" Text="" Style="{StaticResource HintText}" Margin="6,14,0,0" />
+                    <Grid Margin="6,28,0,0">
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                      </Grid.ColumnDefinitions>
+                      <StackPanel>
+                        <TextBlock Text="Принудительно задать адреса Readback для этого запуска" Style="{StaticResource BodyText}" FontSize="20" />
+                        <TextBlock Text="Экспериментальная опция: не включается автоматически, не сохраняется и не меняет оригинальные файлы."
+                                   FontSize="17" Foreground="{StaticResource WarningBrush}" TextWrapping="Wrap" Margin="0,8,0,0" />
+                      </StackPanel>
+                      <CheckBox x:Name="ReadbackOverrideCheck" Grid.Column="1" Style="{StaticResource ToggleSwitch}"
+                                AutomationProperties.Name="Принудительный Readback для этого запуска" />
+                    </Grid>
+                    <Border Style="{StaticResource Card}" Margin="0,28,0,0" Padding="22,16">
+                      <StackPanel>
+                        <Button x:Name="TechDetailsButton" Content="ДОПОЛНИТЕЛЬНЫЕ ТЕХНИЧЕСКИЕ ПАРАМЕТРЫ  ▾"
+                                Style="{StaticResource LinkButton}" FontSize="19" FontWeight="Bold"
+                                Foreground="{StaticResource GoldTextBrush}" Click="TechDetailsClicked" />
+                        <TextBlock Text="Конфигурация SDK, переменные среды, журнал texture-runtime"
+                                   Style="{StaticResource HintText}" Margin="0,10,0,0" />
+                        <TextBox x:Name="TextureInputSummaryText" Visibility="Collapsed" IsReadOnly="True"
+                                 TextWrapping="Wrap" FontSize="15" Margin="0,14,0,0" Padding="10,8"
+                                 FontFamily="Consolas" Background="#CC0B0807" />
+                      </StackPanel>
+                    </Border>
+                  </StackPanel>
+                </ScrollViewer>
+
+                <StackPanel x:Name="OptPerfTab" Grid.Row="1" Margin="6,24,0,0" Visibility="Collapsed">
+                  <Border Style="{StaticResource Card}">
+                    <StackPanel>
+                      <Grid>
+                        <TextBlock Text="HOTFUNC — УСТУПАТЬ КАЖДЫЕ N ВЫЗОВОВ" Style="{StaticResource FieldLabel}" VerticalAlignment="Center" />
+                        <TextBox x:Name="HotFuncYieldBox" Width="96" Height="38" Text="1" HorizontalAlignment="Right"
+                                 TextAlignment="Center" LostFocus="HotFuncYieldBoxLostFocus" />
+                      </Grid>
+                      <Slider x:Name="HotFuncYieldSlider" Minimum="0" Maximum="16" Value="1" Margin="0,6,0,0"
+                              SmallChange="1" LargeChange="1" IsSnapToTickEnabled="True" TickFrequency="1"
+                              ValueChanged="HotFuncYieldSliderChanged" />
+                      <Grid>
+                        <TextBlock Text="0" FontSize="16" Foreground="{StaticResource MutedTextBrush}" />
+                        <TextBlock Text="16" FontSize="16" Foreground="{StaticResource MutedTextBrush}" HorizontalAlignment="Right" />
+                      </Grid>
+                    </StackPanel>
+                  </Border>
+                  <TextBlock Text="Пакетная уступка выполнения в часто вызываемых функциях. 1 — исходное поведение; больше — меньше переключений контекста; 0 — никогда не уступать. В поле можно ввести значение до 4096."
+                             Style="{StaticResource HintText}" Margin="10,16,0,0" />
+                </StackPanel>
+
+                <StackPanel x:Name="OptExperimentalTab" Grid.Row="1" Margin="6,24,0,0" Visibility="Collapsed">
+                  <Border Style="{StaticResource Card}" Margin="0,0,0,14">
+                    <Grid>
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                      </Grid.ColumnDefinitions>
+                      <StackPanel>
+                        <TextBlock Text="Повышенная частота тиков" FontSize="20" FontWeight="Bold" />
+                        <TextBlock Text="Нестабильно · LF-тики 15 → 30 Гц (режим Xenia «High Tick Rate»)" FontSize="17"
+                                   Foreground="{StaticResource DangerBrush}" Margin="0,6,0,0" TextWrapping="Wrap" />
+                      </StackPanel>
+                      <CheckBox x:Name="HighTickCheck" Grid.Column="1" Style="{StaticResource ToggleSwitch}"
+                                Checked="HighTickChanged" Unchecked="HighTickChanged"
+                                AutomationProperties.Name="Повышенная частота тиков" />
+                    </Grid>
+                  </Border>
+                  <Border Style="{StaticResource Card}">
+                    <Grid>
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                      </Grid.ColumnDefinitions>
+                      <StackPanel>
+                        <TextBlock Text="Повышенная частота HF-тиков" FontSize="20" FontWeight="Bold" />
+                        <TextBlock x:Name="HfTickHelpText" Text="Недоступно: сначала включите «Повышенная частота тиков»."
+                                   FontSize="17" Foreground="{StaticResource MutedTextBrush}" Margin="0,6,0,0" TextWrapping="Wrap" />
+                      </StackPanel>
+                      <CheckBox x:Name="HfTickCheck" Grid.Column="1" Style="{StaticResource ToggleSwitch}"
+                                Checked="SettingChanged" Unchecked="SettingChanged"
+                                AutomationProperties.Name="Повышенная частота HF-тиков" />
+                    </Grid>
+                  </Border>
+                  <Border Style="{StaticResource InfoBar}" Margin="0,20,0,0">
+                    <TextBlock Text="Оба режима экспериментальные. Не включайте их по умолчанию." Style="{StaticResource BodyText}"
+                               Foreground="{StaticResource WarningBrush}" />
+                  </Border>
+                </StackPanel>
+              </Grid>
+
+              <!-- ========== GAME FILES ========== -->
+              <ScrollViewer x:Name="SectionFiles" Visibility="Collapsed" VerticalScrollBarVisibility="Auto" Padding="0,0,18,0">
+                <StackPanel Margin="6,0,0,0">
+                  <TextBlock Text="РАСПОЛОЖЕНИЕ ОРИГИНАЛЬНЫХ ФАЙЛОВ" Style="{StaticResource SectionLabel}" Margin="6,0,0,12" />
+                  <Grid>
+                    <Grid.ColumnDefinitions>
+                      <ColumnDefinition Width="*" />
+                      <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Border Background="{StaticResource FieldBrush}" BorderBrush="{StaticResource FieldBorderBrush}"
+                            BorderThickness="1" CornerRadius="4" Height="52" Padding="16,0">
+                      <TextBlock x:Name="GamePathText" Text="Не выбрано" FontSize="20" VerticalAlignment="Center"
+                                 TextTrimming="CharacterEllipsis" />
+                    </Border>
+                    <Button Grid.Column="1" Content="ОБЗОР" Style="{StaticResource DarkButton}" Width="150" Height="52"
+                            Padding="0" Margin="14,0,0,0" Click="BrowseClicked" />
+                  </Grid>
+                  <StackPanel Orientation="Horizontal" Margin="8,14,0,0">
+                    <Ellipse x:Name="FilesStatusDot" Width="12" Height="12" Fill="{StaticResource SuccessBrush}"
+                             VerticalAlignment="Center" Margin="0,0,10,0" />
+                    <TextBlock x:Name="FilesStatusText" Text="" FontSize="19" />
+                  </StackPanel>
+                  <TextBlock x:Name="FilesStatusDetail" Text="" Style="{StaticResource HintText}" Margin="30,6,0,0" />
+
+                  <Border Style="{StaticResource Card}" Margin="0,26,0,0">
+                    <StackPanel>
+                      <TextBlock Text="УСТАНОВКА ИЗ ISO-ОБРАЗА" Style="{StaticResource SectionLabel}" />
+                      <TextBlock Text="Выберите оригинальный образ диска. Файлы извлекаются в папку лаунчера, рядом с fable_2.exe."
+                                 Style="{StaticResource HintText}" Margin="0,10,0,16" />
+                      <Button x:Name="ExtractButton" Content="ВЫБРАТЬ ISO И ИЗВЛЕЧЬ" Style="{StaticResource DarkButton}"
+                              HorizontalAlignment="Left" Width="360" Height="52" Padding="0" Click="ExtractClicked" />
+                      <TextBlock x:Name="ExtractionStatusText" Style="{StaticResource HintText}" Margin="0,12,0,0"
+                                 Visibility="Collapsed" />
+                    </StackPanel>
+                  </Border>
+
+                  <Border Style="{StaticResource Card}" Margin="0,18,0,0">
+                    <Grid>
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                      </Grid.ColumnDefinitions>
+                      <StackPanel>
+                        <TextBlock Text="ДИАГНОСТИЧЕСКИЙ ЗАПУСК" Style="{StaticResource SectionLabel}" />
+                        <TextBlock Text="Сохранять локальный отчёт и журнал запуска (без отправки файлов). Лаунчер остаётся открытым до выхода из игры. Действует только для текущего сеанса лаунчера."
+                                   Style="{StaticResource HintText}" Margin="0,10,0,0" />
+                      </StackPanel>
+                      <CheckBox x:Name="DiagnosticCheck" Grid.Column="1" Style="{StaticResource ToggleSwitch}"
+                                AutomationProperties.Name="Диагностический запуск" />
+                    </Grid>
+                  </Border>
+                </StackPanel>
+              </ScrollViewer>
+            </Grid>
+          </Grid>
+        </Border>
+        <TextBlock Text="2.0.0" FontSize="16" Foreground="{StaticResource GoldTextBrush}"
+                   HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,50,16" />
+      </Grid>
+
+      <!-- ===================== ACHIEVEMENTS ===================== -->
+      <Grid x:Name="AchievementsPage" Visibility="Collapsed">
+        <Image Source="/Resources/V2/settings-background.jpg" Stretch="UniformToFill" />
+        <Rectangle Fill="#9E000000" />
+        <Button Content="←  На главную" Style="{StaticResource DarkButton}" Height="40" Padding="18,0"
+                FontSize="18" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="60,18,0,0"
+                Click="AchievementsBackClicked" />
+        <Border Margin="60,70,60,40" Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource GoldBrush}"
+                BorderThickness="1.5" CornerRadius="8">
+          <Grid Margin="40,30,22,20">
+            <Grid.RowDefinitions>
+              <RowDefinition Height="Auto" />
+              <RowDefinition Height="Auto" />
+              <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+            <Grid Margin="0,0,18,0">
+              <StackPanel>
+                <TextBlock Text="Достижения" Style="{StaticResource PageTitle}" />
+                <TextBlock FontSize="19" Foreground="{StaticResource MutedTextBrush}" Margin="2,10,0,0">
+                  <Run x:Name="AchProfileRun" Text="Fable II" /><Run Text=" · прогресс рекомпиляции" />
+                </TextBlock>
+              </StackPanel>
+              <StackPanel Width="520" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,6,0,0">
+                <Grid>
+                  <TextBlock FontSize="19">
+                    <Run Text="Выполнено" /><Run Text=" " /><Run x:Name="AchDoneRun" Text="0" FontWeight="Bold"
+                         Foreground="{StaticResource GoldLightBrush}" /><Run Text=" " /><Run Text="из" /><Run Text=" " /><Run x:Name="AchTotalRun" Text="0" />
+                  </TextBlock>
+                  <TextBlock HorizontalAlignment="Right" FontSize="19">
+                    <Run x:Name="AchPointsDoneRun" Text="0" FontWeight="Bold" Foreground="{StaticResource GoldLightBrush}" /><Run x:Name="AchPointsTotalRun" Text=" / 0 G" />
+                  </TextBlock>
+                </Grid>
+                <Grid Height="10" Margin="0,12,0,0">
+                  <Border CornerRadius="5" Background="#FF3A3330" />
+                  <Border x:Name="AchProgressFill" CornerRadius="5" HorizontalAlignment="Left" Width="0">
+                    <Border.Background>
+                      <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                        <GradientStop Color="#FFB88A4E" Offset="0" />
+                        <GradientStop Color="#FFF0D49A" Offset="1" />
+                      </LinearGradientBrush>
+                    </Border.Background>
+                  </Border>
+                </Grid>
+                <TextBlock x:Name="AchStateHint" Text="" FontSize="15" Foreground="{StaticResource MutedTextBrush}"
+                           Margin="0,8,0,0" TextWrapping="Wrap" />
+              </StackPanel>
+            </Grid>
+            <Grid Grid.Row="1" Margin="0,20,18,0">
+              <Border Style="{StaticResource Separator}" VerticalAlignment="Top" />
+              <StackPanel Orientation="Horizontal" Margin="0,22,0,0">
+                <RadioButton x:Name="AchTabAll" GroupName="AchTabs" Tag="all" AutomationProperties.Name="Все" Style="{StaticResource TabButton}"
+                             IsChecked="True" Checked="AchievementFilterChanged" Height="46">
+                  <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="Все" />
+                    <TextBlock x:Name="AchCountAll" Text="0" Margin="10,0,0,0" FontSize="16" Opacity="0.75" VerticalAlignment="Center" />
+                  </StackPanel>
+                </RadioButton>
+                <RadioButton GroupName="AchTabs" Tag="done" AutomationProperties.Name="Выполненные" Style="{StaticResource TabButton}"
+                             Checked="AchievementFilterChanged" Height="46">
+                  <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="Выполненные" />
+                    <TextBlock x:Name="AchCountDone" Text="0" Margin="10,0,0,0" FontSize="16" Opacity="0.75" VerticalAlignment="Center" />
+                  </StackPanel>
+                </RadioButton>
+                <RadioButton GroupName="AchTabs" Tag="todo" AutomationProperties.Name="Не выполненные" Style="{StaticResource TabButton}"
+                             Checked="AchievementFilterChanged" Height="46">
+                  <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="Не выполненные" />
+                    <TextBlock x:Name="AchCountTodo" Text="0" Margin="10,0,0,0" FontSize="16" Opacity="0.75" VerticalAlignment="Center" />
+                  </StackPanel>
+                </RadioButton>
+              </StackPanel>
+              <ComboBox x:Name="AchSortCombo" Width="300" Height="46" FontSize="18" HorizontalAlignment="Right"
+                        Margin="0,22,0,0" SelectionChanged="AchievementFilterChanged"
+                        AutomationProperties.Name="Сортировка достижений">
+                <ComboBoxItem Tag="unlocked" IsSelected="True">Сначала полученные</ComboBoxItem>
+                <ComboBoxItem Tag="order">По порядку в игре</ComboBoxItem>
+                <ComboBoxItem Tag="points">Сначала дорогие</ComboBoxItem>
+                <ComboBoxItem Tag="name">По названию</ComboBoxItem>
+              </ComboBox>
+            </Grid>
+            <ScrollViewer x:Name="AchievementsScroll" Grid.Row="2" Margin="0,20,0,0" VerticalScrollBarVisibility="Auto"
+                          Padding="0,0,14,0">
+              <Grid>
+                <UniformGrid x:Name="AchievementsList" Columns="2" VerticalAlignment="Top" />
+                <TextBlock x:Name="AchievementsEmptyText" Text="" FontSize="20" Visibility="Collapsed"
+                           Foreground="{StaticResource MutedTextBrush}" HorizontalAlignment="Center" Margin="0,80,0,0" />
+              </Grid>
+            </ScrollViewer>
+          </Grid>
         </Border>
       </Grid>
-    </Border>
-  </Grid>
+
+      <!-- Window buttons (all pages) -->
+      <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,24,32,0">
+        <Button x:Name="AchievementsButton" Style="{StaticResource DarkButton}" Height="44" Padding="12,0,14,0"
+                Margin="0,0,10,0" Click="OpenAchievementsClicked" AutomationProperties.Name="Достижения"
+                ToolTip="Список всех достижений Fable II">
+          <StackPanel Orientation="Horizontal">
+            <Grid Width="28" Height="28" Margin="0,0,10,0">
+              <Ellipse Stroke="#FF3A3330" StrokeThickness="3" />
+              <Ellipse x:Name="AchRing" Stroke="#FFE0B56A" StrokeThickness="3" RenderTransformOrigin="0.5,0.5"
+                       StrokeDashCap="Flat" StrokeDashArray="0 100">
+                <Ellipse.RenderTransform>
+                  <RotateTransform Angle="-90" />
+                </Ellipse.RenderTransform>
+              </Ellipse>
+              <Path Data="{StaticResource TrophyGeometry}" Fill="{StaticResource GoldLightBrush}" Stretch="Uniform"
+                    Width="13" Height="13" />
+            </Grid>
+            <TextBlock Text="ДОСТИЖЕНИЯ" FontSize="17" FontWeight="Bold" VerticalAlignment="Center" />
+            <Border Background="#FF4A3220" BorderBrush="#FFC9A060" BorderThickness="1" CornerRadius="10"
+                    Padding="8,1" Margin="10,0,0,0" VerticalAlignment="Center">
+              <TextBlock x:Name="AchievementsBadgeText" Text="0 / 0" FontSize="14" FontWeight="Bold"
+                         Foreground="{StaticResource GoldLightBrush}" />
+            </Border>
+          </StackPanel>
+        </Button>
+        <Button Content="−" Style="{StaticResource WindowButton}" Click="MinimizeClicked"
+                AutomationProperties.Name="Свернуть" />
+        <Button Content="×" Style="{StaticResource WindowButton}" Margin="10,0,0,0" Click="CloseClicked"
+                AutomationProperties.Name="Закрыть" />
+      </StackPanel>
+
+      <!-- ===================== WHAT'S NEW ===================== -->
+      <Grid x:Name="WhatsNewOverlay" Visibility="Collapsed">
+        <Rectangle Fill="#8C000000" MouseLeftButtonDown="OverlayBackgroundClicked" />
+        <Border Style="{StaticResource Dialog}" Width="1020" Height="730" HorizontalAlignment="Center"
+                VerticalAlignment="Center">
+          <Grid Margin="64,48,64,26">
+            <Grid.RowDefinitions>
+              <RowDefinition Height="Auto" />
+              <RowDefinition Height="*" />
+              <RowDefinition Height="Auto" />
+              <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <StackPanel>
+              <TextBlock Text="Что нового в лаунчере" FontFamily="{StaticResource HeadingFont}" FontSize="44"
+                         FontWeight="Bold" Foreground="{StaticResource GoldLightBrush}" />
+              <TextBlock Text="Версия 2.0.0" FontSize="20" Foreground="{StaticResource GoldTextBrush}" Margin="4,18,0,0" />
+              <Border Style="{StaticResource Separator}" Margin="0,22,0,0" Background="#FF8A6A3E" />
+            </StackPanel>
+            <StackPanel Grid.Row="1" Margin="10,30,0,0">
+              <BulletDecorator Margin="0,0,0,30">
+                <BulletDecorator.Bullet>
+                  <Ellipse Width="12" Height="12" Fill="{StaticResource GoldBrush}" Margin="0,4,0,0" VerticalAlignment="Top" />
+                </BulletDecorator.Bullet>
+                <TextBlock Text="Новый главный экран: быстрый доступ к запуску и настройкам." Style="{StaticResource BodyText}" FontSize="20" Margin="22,0,0,0" />
+              </BulletDecorator>
+              <BulletDecorator Margin="0,0,0,30">
+                <BulletDecorator.Bullet>
+                  <Ellipse Width="12" Height="12" Fill="{StaticResource GoldBrush}" Margin="0,4,0,0" VerticalAlignment="Top" />
+                </BulletDecorator.Bullet>
+                <TextBlock Text="Все параметры объединены в пяти логичных разделах." Style="{StaticResource BodyText}" FontSize="20" Margin="22,0,0,0" />
+              </BulletDecorator>
+              <BulletDecorator Margin="0,0,0,30">
+                <BulletDecorator.Bullet>
+                  <Ellipse Width="12" Height="12" Fill="{StaticResource GoldBrush}" Margin="0,4,0,0" VerticalAlignment="Top" />
+                </BulletDecorator.Bullet>
+                <TextBlock Text="Сохранены патчи, Readback, HOTFUNC и режимы управления." Style="{StaticResource BodyText}" FontSize="20" Margin="22,0,0,0" />
+              </BulletDecorator>
+              <BulletDecorator>
+                <BulletDecorator.Bullet>
+                  <Ellipse Width="12" Height="12" Fill="{StaticResource GoldBrush}" Margin="0,4,0,0" VerticalAlignment="Top" />
+                </BulletDecorator.Bullet>
+                <TextBlock Text="Единое сохранение, предупреждения и понятные состояния." Style="{StaticResource BodyText}" FontSize="20" Margin="22,0,0,0" />
+              </BulletDecorator>
+            </StackPanel>
+            <Grid Grid.Row="2" Margin="10,0,30,0">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="394" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="370" />
+              </Grid.ColumnDefinitions>
+              <Button Content="ПРОВЕРИТЬ ОБНОВЛЕНИЯ" Style="{StaticResource DarkButton}" Height="62" Padding="0"
+                      FontSize="22" Click="CheckUpdatesClicked" />
+              <Button Grid.Column="2" Content="ЗАКРЫТЬ" Style="{StaticResource GoldButton}" Height="62"
+                      Click="CloseWhatsNewClicked" />
+            </Grid>
+            <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,26,0,0">
+              <TextBlock Text="Автор доработок: " FontSize="17" Foreground="{StaticResource MutedTextBrush}" VerticalAlignment="Center" />
+              <Button Content="deadtools" Style="{StaticResource LinkButton}" FontSize="17"
+                      Foreground="{StaticResource MutedTextBrush}" Click="DeadtoolsLinkClicked" />
+              <TextBlock Text="   •   Проект: " FontSize="17" Foreground="{StaticResource MutedTextBrush}"
+                         VerticalAlignment="Center" />
+              <Button Content="github.com/deadtools/-Fable-2-Recomp" Style="{StaticResource LinkButton}" FontSize="17"
+                      Foreground="{StaticResource GoldTextBrush}" Click="ProjectLinkClicked"
+                      ToolTip="https://github.com/deadtools/-Fable-2-Recomp" />
+            </StackPanel>
+          </Grid>
+        </Border>
+      </Grid>
+
+      <!-- ===================== UNSAVED CHANGES ===================== -->
+      <Grid x:Name="UnsavedOverlay" Visibility="Collapsed">
+        <Rectangle Fill="#8C000000" />
+        <Border Style="{StaticResource Dialog}" Width="835" Height="325" HorizontalAlignment="Center"
+                VerticalAlignment="Top" Margin="180,273,0,0">
+          <StackPanel VerticalAlignment="Center">
+            <TextBlock Text="Несохранённые изменения" FontFamily="{StaticResource HeadingFont}" FontSize="40"
+                       FontWeight="Bold" Foreground="{StaticResource GoldLightBrush}" HorizontalAlignment="Center" />
+            <TextBlock Text="Сохранить настройки перед выходом?" FontSize="21" HorizontalAlignment="Center" Margin="0,26,0,36" />
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+              <Button Content="НЕ СОХРАНЯТЬ" Style="{StaticResource DarkButton}" Width="240" Height="62" Padding="0"
+                      FontSize="22" Click="UnsavedDiscardClicked" />
+              <Button Content="ОТМЕНА" Style="{StaticResource DarkButton}" Width="164" Height="62" Padding="0"
+                      FontSize="22" Margin="22,0,22,0" Click="UnsavedCancelClicked" />
+              <Button Content="СОХРАНИТЬ" Style="{StaticResource GoldButton}" Width="288" Height="62"
+                      Click="UnsavedSaveClicked" />
+            </StackPanel>
+          </StackPanel>
+        </Border>
+      </Grid>
+
+      <!-- ===================== ISO EXTRACTION ===================== -->
+      <Border x:Name="ExtractionOverlay" Background="#F50D0A09" Visibility="Collapsed">
+        <Grid Margin="80,70,80,50">
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+          </Grid.RowDefinitions>
+
+          <StackPanel HorizontalAlignment="Center">
+            <TextBlock Text="Извлечение из ISO" FontFamily="{StaticResource HeadingFont}" FontSize="44" FontWeight="Bold"
+                       Foreground="{StaticResource GoldLightBrush}" HorizontalAlignment="Center" />
+            <TextBlock x:Name="ExtractionPhaseText" Text="Запуск…" FontSize="20"
+                       Foreground="{StaticResource GoldTextBrush}" Margin="0,12,0,0" HorizontalAlignment="Center" />
+          </StackPanel>
+
+          <Button x:Name="StopButton" Content="Остановить" Click="StopClicked" Style="{StaticResource DarkButton}"
+                  HorizontalAlignment="Right" VerticalAlignment="Top" Width="180" Height="48" Padding="0"
+                  Foreground="{StaticResource DangerBrush}" />
+
+          <StackPanel Grid.Row="1" VerticalAlignment="Center" HorizontalAlignment="Center" Width="820">
+            <ProgressBar x:Name="ExtractionProgressBar" Height="20" Minimum="0" Maximum="100" />
+            <Grid Margin="0,14,0,0">
+              <TextBlock x:Name="ExtractionPercentText" Text="0%" FontSize="30" FontWeight="Bold"
+                         Foreground="{StaticResource GoldLightBrush}" HorizontalAlignment="Left" />
+              <TextBlock x:Name="ExtractionBytesText" Text="0 / 0 MB" FontSize="19"
+                         Foreground="{StaticResource MutedTextBrush}" HorizontalAlignment="Right" VerticalAlignment="Bottom" />
+            </Grid>
+
+            <Border x:Name="HashPrompt" Margin="0,30,0,0" Background="#CC2A1410"
+                    BorderBrush="#FF9E4A4A" BorderThickness="1" CornerRadius="8" Padding="26,20" Visibility="Collapsed">
+              <StackPanel>
+                <TextBlock x:Name="HashPromptText" FontSize="19" Foreground="#FFE8C9A8" TextWrapping="Wrap"
+                           HorizontalAlignment="Center" TextAlignment="Center" />
+                <Button x:Name="CancelButton" Content="Отмена" Click="CancelClicked" Style="{StaticResource GoldButton}"
+                        Margin="0,20,0,0" Width="320" Height="58" HorizontalAlignment="Center" />
+                <Button x:Name="ExtractAnywaysButton" Content="Всё равно извлечь" Click="ExtractAnywaysClicked"
+                        Style="{StaticResource DarkButton}" Margin="0,12,0,0" Width="260" Height="44" Padding="0"
+                        HorizontalAlignment="Center" Foreground="{StaticResource DangerBrush}" />
+              </StackPanel>
+            </Border>
+          </StackPanel>
+
+          <TextBlock x:Name="ExtractionFileText" Grid.Row="2" Margin="0,18,0,0" FontSize="18"
+                     Foreground="{StaticResource TextBrush}" HorizontalAlignment="Center"
+                     TextTrimming="CharacterEllipsis" Text="Ожидание…" />
+
+          <Border Grid.Row="3" Margin="0,18,0,0" Style="{StaticResource Card}" Padding="20,14">
+            <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="220">
+              <WrapPanel x:Name="ExtractionFolderList" />
+            </ScrollViewer>
+          </Border>
+        </Grid>
+      </Border>
+    </Grid>
+  </Viewbox>
 </Window>

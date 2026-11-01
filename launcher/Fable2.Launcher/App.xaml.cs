@@ -28,7 +28,7 @@ public partial class App : Application
             MessageBox.Show(
                 "Fable II Launcher encountered a startup error.\n\n" + e.Exception.Message +
                 "\n\nDetails saved to:\n" + LauncherStartupDiagnostics.LogPath,
-                "Fable II Launcher 1.6.1 — startup error",
+                "Fable II Launcher 2.0.0 — startup error",
                 MessageBoxButton.OK, MessageBoxImage.Error);
         }
         catch { /* best effort: the exception is still recorded */ }
